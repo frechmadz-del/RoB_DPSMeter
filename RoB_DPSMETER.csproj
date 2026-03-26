@@ -1,0 +1,67 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>DPS Meter</AssemblyName>
+    <Description>DPS Meter for Raiders of Blackveil</Description>
+    <Version>1.0.0</Version>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+
+    <Reference Include="UnityEngine">
+        <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\UnityEngine.dll</HintPath>
+    </Reference>
+    
+    <Reference Include="UnityEngine.CoreModule">
+        <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+
+    <Reference Include="UnityEngine.UI">
+        <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\UnityEngine.UI.dll</HintPath>
+    </Reference>
+
+    <Reference Include="UnityEngine.UIModule">
+        <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\UnityEngine.UIModule.dll</HintPath>
+    </Reference>
+
+    <Reference Include="UnityEngine.InputLegacyModule">
+        <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+    </Reference>
+
+    <Reference Include="UnityEngine.PhysicsModule">
+        <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\UnityEngine.PhysicsModule.dll</HintPath>
+    </Reference>
+
+    <Reference Include="UnityEngine.TextRenderingModule">
+        <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+    </Reference>
+
+    <Reference Include="BepInEx">
+        <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\BepInEx\core\BepInEx.dll</HintPath>
+    </Reference>
+    <Reference Include="Assembly-CSharp">
+        <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\Assembly-CSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.InputSystem">
+        <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\Unity.InputSystem.dll</HintPath>
+    </Reference>
+    <Reference Include="Fusion.Runtime">
+        <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\Fusion.Runtime.dll</HintPath>
+    </Reference>
+    
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="HarmonyX" Version="2.16.0" />
+    <PackageReference Include="MonoMod.Backports" Version="1.1.2" />
+    <PackageReference Include="MonoMod.ILHelpers" Version="1.1.0" />
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="F:\SteamLibrary\steamapps\common\Raiders of Blackveil\BepInEx\plugins\" />
+  </Target>
+
+</Project>

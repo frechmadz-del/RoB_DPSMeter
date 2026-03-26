@@ -1,0 +1,87 @@
+{
+  "format": 1,
+  "restore": {
+    "F:\\ModdingWorkbench\\RoB_DPSMeter\\RoB_DPSMETER\\RoB_DPSMETER.csproj": {}
+  },
+  "projects": {
+    "F:\\ModdingWorkbench\\RoB_DPSMeter\\RoB_DPSMETER\\RoB_DPSMETER.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "F:\\ModdingWorkbench\\RoB_DPSMeter\\RoB_DPSMETER\\RoB_DPSMETER.csproj",
+        "projectName": "DPS Meter",
+        "projectPath": "F:\\ModdingWorkbench\\RoB_DPSMeter\\RoB_DPSMETER\\RoB_DPSMETER.csproj",
+        "packagesPath": "C:\\Users\\MatsZ\\.nuget\\packages\\",
+        "outputPath": "F:\\ModdingWorkbench\\RoB_DPSMeter\\RoB_DPSMETER\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\MatsZ\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "netstandard2.1"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "netstandard2.1": {
+            "targetAlias": "netstandard2.1",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.200"
+      },
+      "frameworks": {
+        "netstandard2.1": {
+          "targetAlias": "netstandard2.1",
+          "dependencies": {
+            "HarmonyX": {
+              "target": "Package",
+              "version": "[2.16.0, )"
+            },
+            "MonoMod.Backports": {
+              "target": "Package",
+              "version": "[1.1.2, )"
+            },
+            "MonoMod.ILHelpers": {
+              "target": "Package",
+              "version": "[1.1.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "NETStandard.Library.Ref",
+              "version": "[2.1.0, 2.1.0]"
+            }
+          ],
+          "frameworkReferences": {
+            "NETStandard.Library": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.201\\RuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}
