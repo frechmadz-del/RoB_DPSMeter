@@ -1015,11 +1015,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "F:\\ModdingWorkbench\\RoB_DPSMeter\\RoB_DPSMETER\\RoB_DPSMETER.csproj",
+      "projectUniqueName": "F:\\ModdingWorkbench\\RoB_DPSMeter\\RoB_DPSMeter-1\\RoB_DPSMETER.csproj",
       "projectName": "DPS Meter",
-      "projectPath": "F:\\ModdingWorkbench\\RoB_DPSMeter\\RoB_DPSMETER\\RoB_DPSMETER.csproj",
+      "projectPath": "F:\\ModdingWorkbench\\RoB_DPSMeter\\RoB_DPSMeter-1\\RoB_DPSMETER.csproj",
       "packagesPath": "C:\\Users\\MatsZ\\.nuget\\packages\\",
-      "outputPath": "F:\\ModdingWorkbench\\RoB_DPSMeter\\RoB_DPSMETER\\obj\\",
+      "outputPath": "F:\\ModdingWorkbench\\RoB_DPSMeter\\RoB_DPSMeter-1\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\MatsZ\\AppData\\Roaming\\NuGet\\NuGet.Config"

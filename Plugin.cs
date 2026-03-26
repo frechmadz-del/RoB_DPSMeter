@@ -275,19 +275,20 @@ namespace BlackveilDpsMeter
                 var runner = localChamp.Runner; // Get the NetworkRunner from the champion
                 float nextSyncTime = 0f; // Initialize next sync time     
 
-                if (runner != null && localChamp.Player != null)
-                {   
-                    if (Time.time > nextSyncTime)
+                if (runner.IsServer && runner.IsRunning && Time.time > nextSyncTime)
+                {
+                    nextSyncTime = Time.time + 2.0f;
+
+                    foreach (var player in PlayerManager.Instance.GetPlayers()) // Or your player list
                     {
-                        nextSyncTime = Time.time + 2f; // Only sync every 2 seconds
-                        // Use runner.LocalPlayer instead of localChamp.Player.PlayerRef
+                        // Trigger the RPC for each player
+                        // Our Patch (below) will intercept this and attach that specific player's stats
                         PlayerManager.Instance.RPC_Handle_SetUserData_All(
-                            runner.LocalPlayer, 
-                            localChamp.Player.UserName, 
-                            localChamp.Player.ProfileUUID
+                            player.Object.InputAuthority, 
+                            player.UserName, 
+                            player.ProfileUUID
                         );
                     }
-                    
                 }
             }
             // Inside your Update loop
@@ -379,6 +380,11 @@ namespace BlackveilDpsMeter
                     Plugin.Instance.TotalMinion += finalDmg;
                 Debug.Log($"[DPS Meter] Minion {stats.name} dealt {finalDmg} damage to {victim?.name}");
             }
+            else if (damageDesc.damageValue != 0)
+            {
+                if (Plugin.Instance.StartTime < 0) Plugin.Instance.StartTime = Time.time;
+                Debug.Log($"[DPS Meter] hit detected. starting dps tracking.");
+            }
         }
     }
     [HarmonyPatch(typeof(StatsManager), "CalculateMyDamageAgainst")]
@@ -423,62 +429,76 @@ namespace BlackveilDpsMeter
     // sending to DPS to lobby
 
     [HarmonyPatch(typeof(RR.PlayerManager), "RPC_Handle_SetUserData_All")]
-    public static class DpsSyncPatch
+   public static class DpsSyncPatch
     {
         private const string Separator = "«DPS»";
 
         static bool Prefix(ref string userName, PlayerRef playerRef, NetworkBehaviour __instance)
         {
             var runner = __instance.Runner;
+            if (runner == null) return true;
 
-            // --- HOST: Pack all damage types ---
-            if (runner.IsServer)
+            // --- HOST: Pack data for the specific playerRef ---
+            if (runner.IsServer && !userName.Contains(Separator))
             {
-                if (!userName.Contains(Separator))
-                {   
-                    // If the incoming message has our tag, turn on the muzzle
-                    Plugin.IsSyncingDps = true;
-                    // We build a string of values separated by commas
-                    // Order: Total, Burn, Root, Poison, Bleed, Shock, Curse
+                Plugin.PlayerStats statsToSync = null;
+
+                // Are we packing the Host's own stats or a teammate's stats?
+                if (playerRef == runner.LocalPlayer)
+                {
+                    statsToSync = new Plugin.PlayerStats {
+                        TotalDamage = Plugin.Instance.TotalDamage,
+                        TotalBurn = Plugin.Instance.TotalBurn,
+                        TotalRoot = Plugin.Instance.TotalRoot,f
+                        TotalPoison = Plugin.Instance.TotalPoison,
+                        TotalBleed = Plugin.Instance.TotalBleed,
+                        TotalShock = Plugin.Instance.TotalShock,
+                        TotalCurse = Plugin.Instance.TotalCurse
+                    };
+                }
+                else if (Plugin.Instance.RemotePlayers.TryGetValue(playerRef.PlayerId, out var remoteStats))
+                {
+                    statsToSync = remoteStats;
+                }
+
+                if (statsToSync != null)
+                {
                     string dataPacket = string.Join(",", 
-                        (int)Plugin.Instance.TotalDamage,
-                        (int)Plugin.Instance.TotalBurn,
-                        (int)Plugin.Instance.TotalRoot,
-                        (int)Plugin.Instance.TotalPoison,
-                        (int)Plugin.Instance.TotalBleed,
-                        (int)Plugin.Instance.TotalShock,
-                        (int)Plugin.Instance.TotalCurse
-                    );
+                        (int)statsToSync.TotalDamage, (int)statsToSync.TotalBurn,
+                        (int)statsToSync.TotalRoot, (int)statsToSync.TotalPoison,
+                        (int)statsToSync.TotalBleed, (int)statsToSync.TotalShock,
+                        (int)statsToSync.TotalCurse);
 
                     userName = $"{userName}{Separator}{dataPacket}";
+                     Debug.Log($"[DPS] Host Syncing Player {playerRef.PlayerId}: {dataPacket}");
+                     Debug.Log($"[DPS] Host Sending {userName}");
                 }
             }
 
-            // --- CLIENT: Unpack and Assign ---
+            // --- CLIENT/RECEIVER: Unpack and Update Dictionary ---
             if (userName.Contains(Separator))
             {
-                string[] mainParts = userName.Split(new[] { Separator }, System.StringSplitOptions.None);
-                if (mainParts.Length > 1)
+                Plugin.IsSyncingDps = true;
+                try 
                 {
-                    string[] values = mainParts[1].Split(',');
-                    if (values.Length >= 7) // Ensure we have all categories
+                    string[] mainParts = userName.Split(new[] { Separator }, System.StringSplitOptions.None);
+                    if (mainParts.Length > 1)
                     {
-                        int id = playerRef.PlayerId;
-                        
-                        // Update your remote tracking dictionary/class
-                        // Assuming you have a way to store this per PlayerID
-                        Plugin.Instance.UpdateRemoteStats(id, values);
+                        string[] values = mainParts[1].Split(',');
+                        if (values.Length >= 7)
+                        {
+                            // Use the method you wrote earlier to update your local UI storage
+                            Plugin.Instance.UpdateRemoteStats(playerRef.PlayerId, values);
+                        }
                     }
+                    userName = mainParts[0]; // Strip the junk data for the UI
                 }
-                // Clean name for UI
-                userName = mainParts[0];
-                return false; // Skip original method to prevent "Player Joined" log and logic
+                finally { Plugin.IsSyncingDps = false; }
+                
+                return false; // Skip the original GameManager logic
             }
 
-            // Turn the muzzle off immediately after the method finishes
-            Plugin.IsSyncingDps = false;
-            return true; // Let the original method run for normal name handling
-
+            return true;
         }
     }
     [HarmonyPatch(typeof(GameManager), "HandleEvent_UserDataReceived")]
