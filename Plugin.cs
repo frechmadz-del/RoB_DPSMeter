@@ -209,7 +209,7 @@ namespace BlackveilDpsMeter
                         float dps_Total = Plugin.Instance.TotalDamage / displayTime;
                         // Use a small helper function to keep the code clean
                         string FormatLine(string label, float val) => 
-                            $"{label} DPS: {val / displayTime:F1} ({(val / displayTime / dps_Total) * 100:F1}%)";
+                            $"{label}: {val / displayTime:F1} ({(val / displayTime / dps_Total) * 100:F1}%)";
                         // Use a small helper function for colors
                         string ColorText(string text, string hex) => $"<color={hex}>{text}</color>";
                         // --- CLIPPED BAR LOGIC ---
@@ -305,6 +305,9 @@ namespace BlackveilDpsMeter
 
         }
     }
+
+
+
 
     // patch to fetch dmgh remote
     [HarmonyPatch(typeof(RR.Game.Stats.Health), "AddDamageData")]
