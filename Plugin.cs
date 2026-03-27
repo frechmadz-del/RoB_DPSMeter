@@ -84,6 +84,7 @@ namespace BlackveilDpsMeter
         }
         public class PlayerStats
         {
+            public string Name = "Unknown"; // Added to store the Username
             public float TotalDamage;
             public float TotalBurn;
             public float TotalRoot;
@@ -97,19 +98,24 @@ namespace BlackveilDpsMeter
         public Dictionary<int, PlayerStats> RemotePlayers = new Dictionary<int, PlayerStats>();
 
         // A simple class to hold remote player stats (you can expand this as needed)
-        public void UpdateRemoteStats(int id, string[] values)
+        public void UpdateRemoteStats(int id, string name, string[] values)
         {
-            // Create a storage object if it doesn't exist for this player
-            if (!RemotePlayers.ContainsKey(id)) RemotePlayers[id] = new PlayerStats();
+            if (!RemotePlayers.ContainsKey(id))
+            {
+                RemotePlayers[id] = new PlayerStats();
+            }
 
             var stats = RemotePlayers[id];
-            stats.TotalDamage = float.Parse(values[0]);
-            stats.TotalBurn   = float.Parse(values[1]);
-            stats.TotalRoot   = float.Parse(values[2]);
-            stats.TotalPoison = float.Parse(values[3]);
-            stats.TotalBleed  = float.Parse(values[4]);
-            stats.TotalShock  = float.Parse(values[5]);
-            stats.TotalCurse  = float.Parse(values[6]);
+            stats.Name = name; // Link the name to the ID
+
+            // Parse the values (Assignment, not addition)
+            float.TryParse(values[0], out stats.TotalDamage);
+            float.TryParse(values[1], out stats.TotalBurn);
+            float.TryParse(values[2], out stats.TotalRoot);
+            float.TryParse(values[3], out stats.TotalPoison);
+            float.TryParse(values[4], out stats.TotalBleed);
+            float.TryParse(values[5], out stats.TotalShock);
+            float.TryParse(values[6], out stats.TotalCurse);
         }
     }
 
@@ -281,6 +287,7 @@ namespace BlackveilDpsMeter
 
                     foreach (var player in PlayerManager.Instance.GetPlayers()) // Or your player list
                     {
+                        Debug.Log($"[DPS] Host sync loop running for {player.UserName} player.");
                         // Trigger the RPC for each player
                         // Our Patch (below) will intercept this and attach that specific player's stats
                         PlayerManager.Instance.RPC_Handle_SetUserData_All(
@@ -449,7 +456,7 @@ namespace BlackveilDpsMeter
                     statsToSync = new Plugin.PlayerStats {
                         TotalDamage = Plugin.Instance.TotalDamage,
                         TotalBurn = Plugin.Instance.TotalBurn,
-                        TotalRoot = Plugin.Instance.TotalRoot,f
+                        TotalRoot = Plugin.Instance.TotalRoot,
                         TotalPoison = Plugin.Instance.TotalPoison,
                         TotalBleed = Plugin.Instance.TotalBleed,
                         TotalShock = Plugin.Instance.TotalShock,
@@ -470,7 +477,6 @@ namespace BlackveilDpsMeter
                         (int)statsToSync.TotalCurse);
 
                     userName = $"{userName}{Separator}{dataPacket}";
-                     Debug.Log($"[DPS] Host Syncing Player {playerRef.PlayerId}: {dataPacket}");
                      Debug.Log($"[DPS] Host Sending {userName}");
                 }
             }
@@ -487,8 +493,10 @@ namespace BlackveilDpsMeter
                         string[] values = mainParts[1].Split(',');
                         if (values.Length >= 7)
                         {
+                            string cleanName = mainParts[0]; // This is the player.UserName
+                             Debug.Log($"[DPS] Client Receiving Data for Player {cleanName}: {string.Join(",", values)}");
                             // Use the method you wrote earlier to update your local UI storage
-                            Plugin.Instance.UpdateRemoteStats(playerRef.PlayerId, values);
+                            Plugin.Instance.UpdateRemoteStats(playerRef.PlayerId, cleanName, values);
                         }
                     }
                     userName = mainParts[0]; // Strip the junk data for the UI
