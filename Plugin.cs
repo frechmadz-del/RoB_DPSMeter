@@ -125,6 +125,7 @@ namespace BlackveilDpsMeter
         private Text _uiText;
         private GameObject _canvasObj;
         private GameObject _panelObj;
+        private float nextSyncTime = 0f; // Initialize next sync time
 
         void Start()
         {
@@ -278,25 +279,27 @@ namespace BlackveilDpsMeter
             if (PlayerManager.Instance != null && PlayerManager.Instance.LocalChampion != null)
             {
                 var localChamp = PlayerManager.Instance.LocalChampion;
-                var runner = localChamp.Runner; // Get the NetworkRunner from the champion
-                float nextSyncTime = 0f; // Initialize next sync time     
+                var runner = localChamp.Runner; // Get the NetworkRunner from the champion    
 
-                if (runner.IsServer && runner.IsRunning && Time.time > nextSyncTime)
-                {
-                    nextSyncTime = Time.time + 2.0f;
-
-                    foreach (var player in PlayerManager.Instance.GetPlayers()) // Or your player list
+                if (Time.time > nextSyncTime)
                     {
-                        Debug.Log($"[DPS] Host sync loop running for {player.UserName} player.");
-                        // Trigger the RPC for each player
-                        // Our Patch (below) will intercept this and attach that specific player's stats
-                        PlayerManager.Instance.RPC_Handle_SetUserData_All(
-                            player.Object.InputAuthority, 
-                            player.UserName, 
-                            player.ProfileUUID
-                        );
+                        // 3. Immediately set the next target time (Current time + 2 seconds)
+                        nextSyncTime = Time.time + 2.0f;
+
+                        foreach (var player in PlayerManager.Instance.GetPlayers())
+                        {
+                            if (player == null || player.Object == null) continue;
+
+                            Debug.Log($"[DPS] Host sync loop running for {player.UserName}");
+                            
+                            // Trigger the RPC
+                            PlayerManager.Instance.RPC_Handle_SetUserData_All(
+                                player.Object.InputAuthority, 
+                                player.UserName, 
+                                player.ProfileUUID
+                            );
+                        }
                     }
-                }
             }
             // Inside your Update loop
 
