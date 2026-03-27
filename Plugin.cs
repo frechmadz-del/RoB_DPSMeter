@@ -17,6 +17,7 @@ using RR.UI.Controls.Inventory;
 using UnityEngine.UIElements;
 using RR;
 using Fusion;
+using System.Linq;
 
 namespace BlackveilDpsMeter
 {
@@ -52,6 +53,8 @@ namespace BlackveilDpsMeter
             tracker.hideFlags = HideFlags.HideAndDontSave;
             Object.DontDestroyOnLoad(tracker);
             tracker.AddComponent<PersistentUI>();
+            tracker.AddComponent<LeaderboardUI>();
+
 
             // Subscribe to Unity's sceneLoaded event
             SceneManager.sceneLoaded += OnSceneLoaded;
@@ -87,11 +90,13 @@ namespace BlackveilDpsMeter
             public string Name = "Unknown"; // Added to store the Username
             public float TotalDamage;
             public float TotalBurn;
-            public float TotalRoot;
             public float TotalPoison;
             public float TotalBleed;
             public float TotalShock;
+            public float TotalRoot;
+            public float TotalFrost;
             public float TotalCurse;
+            public float TotalMinion;
         }
 
 // This is the variable the compiler was looking for
@@ -116,6 +121,9 @@ namespace BlackveilDpsMeter
             float.TryParse(values[4], out stats.TotalBleed);
             float.TryParse(values[5], out stats.TotalShock);
             float.TryParse(values[6], out stats.TotalCurse);
+            float.TryParse(values[7], out stats.TotalFrost);
+            float.TryParse(values[8], out stats.TotalMinion);
+
         }
     }
 
@@ -126,6 +134,7 @@ namespace BlackveilDpsMeter
         private GameObject _canvasObj;
         private GameObject _panelObj;
         private float nextSyncTime = 0f; // Initialize next sync time
+        private float dpsupdateTime = 0f;
 
         void Start()
         {
@@ -186,89 +195,102 @@ namespace BlackveilDpsMeter
             textRect.offsetMax = new Vector2(-10, 0);  
         }
 
+        private float _nextDebugTime = 0f;
         void Update()
         {
-            // Safety check: The UI will only update if the plugin successfully captured the start time
+
+            if (Time.time >= _nextDebugTime)
+            {
+                _nextDebugTime = Time.time + 2.0f;
+                PrintActivePlayersDebug();
+            }
             if (Plugin.Instance.StartTime > 0)
             {
-                    // Check if we are "In Combat" (Hit within the last 1.0 seconds)
-                    // 1. Determine if we are currently hitting things
-                    bool inCombat = (Time.time - Plugin.Instance.LastHitTime) <= 1.0f;
+                // Check if we are "In Combat" (Hit within the last 1.0 seconds)
+                bool inCombat = (Time.time - Plugin.Instance.LastHitTime) <= 1.0f;
 
-                    // 2. Only tick the clock forward if we are in combat
-                    if (inCombat)
-                    {
-                        Plugin.Instance.ActiveCombatTime += Time.deltaTime;
-                    }
+                if (inCombat)
+                {
+                    // Add time EVERY frame so the clock is accurate
+                    Plugin.Instance.ActiveCombatTime += Time.deltaTime;
+                }
+            }
+            // Safety check: The UI will only update if the plugin successfully captured the start time
+            if (Plugin.Instance.StartTime > 0 && Time.time > dpsupdateTime)
+            {
+                
+                dpsupdateTime = Time.time + 0.5f; // Update every 0.5 seconds (adjust as needed)
+                // 1. Sync the data from the dictionary back to the Plugin totals
+                RepopulateFromRemote();
 
-                    float displayTime = Mathf.Max(0.1f, Plugin.Instance.ActiveCombatTime);
+                float displayTime = Mathf.Max(0.1f, Plugin.Instance.ActiveCombatTime);
 
-                    if (displayTime > 0.1f)
-                    {           
+                if (displayTime > 0.1f)
+                {           
+                    
+                    float dps_Total = Plugin.Instance.TotalDamage / displayTime;
+                    // Use a small helper function to keep the code clean
+                    string FormatLine(string label, float val) => 
+                        $"{label}: {val / displayTime:F1} ({(val / displayTime / dps_Total) * 100:F1}%)";
+                    // Use a small helper function for colors
+                    string ColorText(string text, string hex) => $"<color={hex}>{text}</color>";
+                    // --- CLIPPED BAR LOGIC ---
+                    int barWidth = 18; // Total character slots
+                    int remainingSlots = barWidth;
+                    string visualBar = "";
+
+                    // Local helper to handle the clipping math
+                    void AddClippedSegment(float damage, string hex) {
+                        if (damage <= 0 || remainingSlots <= 0) return;
+
+                        // Calculate proportional slots
+                        int slots = Mathf.RoundToInt((damage/ displayTime / dps_Total) * barWidth);
                         
-                        float dps_Total = Plugin.Instance.TotalDamage / displayTime;
-                        // Use a small helper function to keep the code clean
-                        string FormatLine(string label, float val) => 
-                            $"{label}: {val / displayTime:F1} ({(val / displayTime / dps_Total) * 100:F1}%)";
-                        // Use a small helper function for colors
-                        string ColorText(string text, string hex) => $"<color={hex}>{text}</color>";
-                        // --- CLIPPED BAR LOGIC ---
-                        int barWidth = 18; // Total character slots
-                        int remainingSlots = barWidth;
-                        string visualBar = "";
-
-                        // Local helper to handle the clipping math
-                        void AddClippedSegment(float damage, string hex) {
-                            if (damage <= 0 || remainingSlots <= 0) return;
-
-                            // Calculate proportional slots
-                            int slots = Mathf.RoundToInt((damage/ displayTime / dps_Total) * barWidth);
-                            
-                            // CLIP: Ensure we don't take more than what's left
-                            slots = Mathf.Min(slots, remainingSlots);
-                            
-                            if (slots > 0) {
-                                visualBar += $"<color={hex}>{new string('█', slots)}</color>";
-                                remainingSlots -= slots;
-                            }
+                        // CLIP: Ensure we don't take more than what's left
+                        slots = Mathf.Min(slots, remainingSlots);
+                        
+                        if (slots > 0) {
+                            visualBar += $"<color={hex}>{new string('█', slots)}</color>";
+                            remainingSlots -= slots;
                         }
-
-                        // Add segments in order of priority
-                        AddClippedSegment(Plugin.Instance.TotalBurn, "#FFA500");
-                        AddClippedSegment(Plugin.Instance.TotalPoison, "#800080");
-                        AddClippedSegment(Plugin.Instance.TotalBleed, "#FF0000");
-                        AddClippedSegment(Plugin.Instance.TotalShock, "#d9ff00");
-                        AddClippedSegment(Plugin.Instance.TotalRoot, "#805700");
-                        AddClippedSegment(Plugin.Instance.TotalChill, "#00FFFF");
-                        AddClippedSegment(Plugin.Instance.TotalCurse, "#019262");
-                        AddClippedSegment(Plugin.Instance.TotalMinion, "#ff00f2");
-
-                        // FILLER: If damage types don't sum to 100% (Raw damage), or rounding left a gap
-                        if (remainingSlots > 0) {
-                            visualBar += $"<color=#555555>{new string('█', remainingSlots)}</color>";
-                        }
-                        // -------------------------
-
-
-                        _uiText.text = string.Join("\n", 
-                            visualBar,
-                            ColorText($"TOTAL DPS: {dps_Total:F1}", "#FFFFFF"),
-                            ColorText(FormatLine("BURN", Plugin.Instance.TotalBurn), "#FFA500"),
-                            ColorText(FormatLine("POISON", Plugin.Instance.TotalPoison), "#800080"),
-                            ColorText(FormatLine("BLEED", Plugin.Instance.TotalBleed), "#FF0000"),
-                            ColorText(FormatLine("SHOCK", Plugin.Instance.TotalShock), "#d9ff00"),
-                            ColorText(FormatLine("ROOT", Plugin.Instance.TotalRoot), "#805700"),
-                            ColorText(FormatLine("FROST", Plugin.Instance.TotalChill), "#00FFFF"),
-                            ColorText(FormatLine("CURSE", Plugin.Instance.TotalCurse), "#019262"),
-                            ColorText(FormatLine("MINION", Plugin.Instance.TotalMinion), "#ff00f2")
-                        );
                     }
-                    else
-                    {
-                        // Optional: Dim the text or add "(PAUSED)" to show combat ended
-                        _uiText.color = new Color(0.7f, 0.7f, 0f); // Dimmer Yellow
-                        // We don't recalculate DPS here, so it stays frozen at the last value
+
+                    // Add segments in order of priority
+                    AddClippedSegment(Plugin.Instance.TotalBurn, "#FFA500");
+                    AddClippedSegment(Plugin.Instance.TotalPoison, "#800080");
+                    AddClippedSegment(Plugin.Instance.TotalBleed, "#FF0000");
+                    AddClippedSegment(Plugin.Instance.TotalShock, "#d9ff00");
+                    AddClippedSegment(Plugin.Instance.TotalRoot, "#805700");
+                    AddClippedSegment(Plugin.Instance.TotalChill, "#00FFFF");
+                    AddClippedSegment(Plugin.Instance.TotalCurse, "#019262");
+                    AddClippedSegment(Plugin.Instance.TotalMinion, "#ff00f2");
+
+                    // FILLER: If damage types don't sum to 100% (Raw damage), or rounding left a gap
+                    if (remainingSlots > 0) {
+                        visualBar += $"<color=#555555>{new string('█', remainingSlots)}</color>";
                     }
+                    // -------------------------
+
+
+                    _uiText.text = string.Join("\n", 
+                        visualBar,
+                        ColorText($"TOTAL DPS: {dps_Total:F1}", "#FFFFFF"),
+                        ColorText(FormatLine("BURN", Plugin.Instance.TotalBurn), "#FFA500"),
+                        ColorText(FormatLine("POISON", Plugin.Instance.TotalPoison), "#800080"),
+                        ColorText(FormatLine("BLEED", Plugin.Instance.TotalBleed), "#FF0000"),
+                        ColorText(FormatLine("SHOCK", Plugin.Instance.TotalShock), "#d9ff00"),
+                        ColorText(FormatLine("ROOT", Plugin.Instance.TotalRoot), "#805700"),
+                        ColorText(FormatLine("FROST", Plugin.Instance.TotalChill), "#00FFFF"),
+                        ColorText(FormatLine("CURSE", Plugin.Instance.TotalCurse), "#019262"),
+                        ColorText(FormatLine("MINION", Plugin.Instance.TotalMinion), "#ff00f2")
+                    );
+                }
+                else
+                {
+                    // Optional: Dim the text or add "(PAUSED)" to show combat ended
+                    _uiText.color = new Color(0.7f, 0.7f, 0f); // Dimmer Yellow
+                    // We don't recalculate DPS here, so it stays frozen at the last value
+                }
             }
 
             if (UnityEngine.InputSystem.Keyboard.current.f10Key.wasPressedThisFrame)
@@ -302,89 +324,317 @@ namespace BlackveilDpsMeter
                     }
             }
             // Inside your Update loop
+            
+        }
+        public void RepopulateFromRemote()
+            {
+                // 1. Find your entry in the dictionary by name
+                var manager = GameObject.FindObjectOfType<PlayerManager>();
+                if (manager == null || manager.LocalPlayer == null) return;
+                string myName = manager.LocalPlayer.UserName;
+                var myData = Plugin.Instance.RemotePlayers.Values.FirstOrDefault(p => p.Name == myName);
 
+                if (myData != null)
+                {
+                    // 2. Directly copy the totals back into the main Plugin instance
+                    Plugin.Instance.TotalBurn = myData.TotalBurn;
+                    Plugin.Instance.TotalPoison = myData.TotalPoison;
+                    Plugin.Instance.TotalBleed = myData.TotalBleed;
+                    Plugin.Instance.TotalShock = myData.TotalShock;
+                    Plugin.Instance.TotalRoot = myData.TotalRoot;
+                    Plugin.Instance.TotalChill = myData.TotalFrost;
+                    Plugin.Instance.TotalCurse = myData.TotalCurse;
+                    Plugin.Instance.TotalMinion = myData.TotalMinion;
+
+                    // Ensure the main total stays in sync too
+                    Plugin.Instance.TotalDamage = myData.TotalDamage;
+                }
+                else
+                {
+                    Debug.LogWarning($"[DPS] No matching entry found in RemotePlayers for {myName}");
+                }
+            }
+        private void PrintActivePlayersDebug()
+{
+    var pm = RR.PlayerManager.Instance;
+    if (pm == null)
+    {
+        Debug.Log("[DPS Debug] PlayerManager.Instance is NULL");
+        return;
+    }
+
+    var players = pm.GetPlayers();
+    Debug.Log($"--- [DPS Debug] Active Players Count: {players.Count} ---");
+
+    for (int i = 0; i < players.Count; i++)
+    {
+        var p = players[i];
+        if (p == null)
+        {
+            Debug.Log($"  [{i}] PLAYER OBJECT IS NULL");
+            continue;
+        }
+
+        // We check several ID types to ensure we find the one 
+        // that matches your 'attackerID' in the patch.
+        string name = string.IsNullOrEmpty(p.UserName) ? "EMPTY_NAME" : p.UserName;
+        int fusionID = p.FusionPlayerRef.PlayerId;
+        int playerID = p.PlayerId; // Internal RR ID
+        bool isLocal = (pm.LocalPlayer == p);
+
+        Debug.Log($"  [{i}] Name: {name} | FusionID: {fusionID} | PlayerID: {playerID} | Local: {isLocal}");
+    }
+    Debug.Log("------------------------------------------");
+}
+    }
+
+    public class LeaderboardUI : MonoBehaviour
+    {
+    private class PlayerBarRefs
+        {
+        public GameObject Root;
+        public Image BarFill;
+        public Text InfoText;
+        }
+    private GameObject _leaderboardPanel;
+    private Dictionary<int, PlayerBarRefs> _playerBars = new Dictionary<int, PlayerBarRefs>();
+    private bool _isInitialized = false;
+
+    private void Update()
+    {
+        if (!_isInitialized)
+        {
+            GameObject canvasObj = GameObject.Find("DPS_Overlay_Canvas");
+            if (canvasObj != null)
+            {
+                InitUI(canvasObj.transform);
+                _isInitialized = true;
+            }
+            return;
+        }
+
+        // Now 'PlayerBarRefs' will be recognized here
+        UpdateLeaderboard();
+    }
+
+    private void InitUI(Transform parentCanvas)
+    {
+        _leaderboardPanel = new GameObject("Leaderboard_Panel");
+        _leaderboardPanel.transform.SetParent(parentCanvas, false);
+
+        // MATCH PERSISTENT UI BACKGROUND
+        Image panelBg = _leaderboardPanel.AddComponent<Image>();
+        Texture2D whiteTex = new Texture2D(1, 1);
+        whiteTex.SetPixel(0, 0, Color.white);
+        whiteTex.Apply();
+        panelBg.sprite = Sprite.Create(whiteTex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f));
+        
+        // Exact match to your PersistentUI: Black (0,0,0) at 80% Opacity (0.8f)
+        panelBg.color = new Color(0f, 0f, 0f, 0.8f); 
+
+        VerticalLayoutGroup vlg = _leaderboardPanel.AddComponent<VerticalLayoutGroup>();
+        vlg.padding = new RectOffset(5, 5, 5, 5);
+        vlg.spacing = 4;
+        vlg.childControlHeight = false;
+        vlg.childForceExpandHeight = false;
+
+        RectTransform rect = _leaderboardPanel.GetComponent<RectTransform>();
+        
+        // Anchor to Right-Center (Same as Persistent UI)
+        rect.anchorMin = new Vector2(1, 0.5f);
+        rect.anchorMax = new Vector2(1, 0.5f);
+        rect.pivot = new Vector2(1, 1); // Top-Right pivot
+
+        // Position: -90Y clears the 170-height PersistentUI panel perfectly
+        rect.anchoredPosition = new Vector2(-10, -90); 
+        rect.sizeDelta = new Vector2(220, 110); 
+        _leaderboardPanel.transform.localScale = Vector3.one;
+    }
+
+    private void UpdateLeaderboard()
+    {
+        var remotePlayers = Plugin.Instance.RemotePlayers;
+        
+        // Hide if no other players are present
+        if (remotePlayers == null || remotePlayers.Count == 0) 
+        {
+            if (_leaderboardPanel.activeSelf) _leaderboardPanel.SetActive(false);
+            return;
+        }
+
+        if (!_leaderboardPanel.activeSelf) _leaderboardPanel.SetActive(true);
+
+        var sorted = remotePlayers.Values
+            .OrderByDescending(p => p.TotalDamage)
+            .Take(3)
+            .ToList();
+        
+        float combatTime = Mathf.Max(0.1f, Plugin.Instance.ActiveCombatTime);
+        float topDmg = sorted[0].TotalDamage;
+
+        for (int i = 0; i < sorted.Count; i++)
+        {
+            if (!_playerBars.TryGetValue(i, out PlayerBarRefs refs))
+            {
+                refs = CreatePlayerBar(i);
+                _playerBars[i] = refs;
+            }
+
+            refs.Root.SetActive(true);
+            float dps = sorted[i].TotalDamage / combatTime;
+            
+            // Bar Fill Logic
+            refs.BarFill.fillAmount = (topDmg > 0) ? (sorted[i].TotalDamage / topDmg) : 0;
+            
+            // Set Text: "Name: 1,234 DPS" in Black
+            refs.InfoText.color = Color.black; 
+            refs.InfoText.text = $"{sorted[i].Name}: {dps:N0} DPS";
+        }
+
+        // Cleanup extra bars
+        for (int i = sorted.Count; i < _playerBars.Count; i++)
+        {
+            if (_playerBars.ContainsKey(i)) _playerBars[i].Root.SetActive(false);
         }
     }
 
+    private PlayerBarRefs CreatePlayerBar(int index)
+    {
+        GameObject row = new GameObject("PlayerBar_" + index);
+        row.transform.SetParent(_leaderboardPanel.transform, false);
+        
+        // Set a height for the bar row
+        RectTransform rowRect = row.AddComponent<RectTransform>();
+        rowRect.sizeDelta = new Vector2(0, 25);
 
+        // 1. Create the Background (The empty part of the bar)
+        Image bg = row.AddComponent<Image>();
+        bg.color = new Color(0, 0, 0, 0.3f); // Subtle dark backdrop for the bar itself
+
+        // 2. Create the Bar Fill (The colored part)
+        GameObject fillObj = new GameObject("Fill");
+        fillObj.transform.SetParent(row.transform, false);
+        Image fillImg = fillObj.AddComponent<Image>();
+        fillImg.type = Image.Type.Filled;
+        fillImg.fillMethod = Image.FillMethod.Horizontal;
+        fillImg.fillOrigin = (int)Image.OriginHorizontal.Left;
+        
+        // Brighter colors for black text contrast
+        fillImg.color = (index == 0) ? new Color(1f, 0.8f, 0f, 1f) : new Color(0f, 0.75f, 1f, 1f);
+
+        RectTransform fillRect = fillImg.rectTransform;
+        fillRect.anchorMin = Vector2.zero;
+        fillRect.anchorMax = Vector2.one;
+        fillRect.sizeDelta = Vector2.zero;
+
+        // 3. Create the Text (Now forced to the top)
+        GameObject textObj = new GameObject("Text");
+        textObj.transform.SetParent(row.transform, false);
+        
+        Text t = textObj.AddComponent<Text>();
+        t.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        t.fontSize = 14;
+        t.fontStyle = FontStyle.Bold;
+        t.alignment = TextAnchor.MiddleLeft;
+        t.color = Color.black; 
+        t.horizontalOverflow = HorizontalWrapMode.Overflow;
+        t.verticalOverflow = VerticalWrapMode.Overflow;
+
+        RectTransform tRect = t.rectTransform;
+        tRect.anchorMin = Vector2.zero;
+        tRect.anchorMax = Vector2.one;
+        tRect.sizeDelta = Vector2.zero;
+        tRect.offsetMin = new Vector2(10, 0); // Padding from left edge
+
+        // CRITICAL: Ensure text is rendered after (on top of) the bar fill
+        textObj.transform.SetAsLastSibling();
+
+        return new PlayerBarRefs { Root = row, BarFill = fillImg, InfoText = t };
+    }
+    }
 
 
     // patch to fetch dmgh remote
-    [HarmonyPatch(typeof(RR.Game.Stats.Health), "AddDamageData")]
-    public static class DamageDataPatch
+[HarmonyPatch(typeof(RR.Game.Stats.Health), "AddDamageData")]
+public static class DamageDataPatch
+{
+    static void Prefix(float damageValue, object damageType, int attackerID)
     {
-        static void Prefix(float damageValue, object damageType, int attackerID)
+        // 1. Get a safe string for the damage type
+        string typeStr = damageType?.ToString() ?? "";
+
+        // 2. Uniform logic: If there is an attacker, update their stats in the dictionary
+        // This handles YOU and Remote players identically based on their unique ID
+        Debug.Log($"[DPS Meter] Damage Detected: {damageValue} of type {typeStr} from AttackerID {attackerID}");
+        if (attackerID >= 0 && attackerID < Plugin.Instance.RemotePlayers.Count)
         {
-
-            string typeStr = damageType?.ToString() ?? "";
-
-            // 2. LOGIC FOR LOCAL PLAYER (YOU)
-            if (attackerID == 0)
-            {
-                Debug.Log($"[DPS Meter] Local Hit Detected: {damageValue} damage of type {typeStr} time {Plugin.Instance.StartTime}");
-                UpdateLocalStats(damageValue, typeStr);
-            }
-            // 3. LOGIC FOR REMOTE PLAYERS (UP TO 2 OTHERS)
-            else if(attackerID == 1 || attackerID == 2)
-            {
-                // We check if we are already tracking this player, 
-                // or if we have room to start tracking a new remote player (max 2)
-                if (Plugin.Instance.RemotePlayers.ContainsKey(attackerID) || Plugin.Instance.RemotePlayers.Count < 2)
-                {
-                    UpdateRemoteStatsInternal(attackerID, damageValue, typeStr);
-                }
-            }
-        }
-
-        private static void UpdateLocalStats(float val, string type)
-        {
-            if (Plugin.Instance.StartTime < 0) Plugin.Instance.StartTime = Time.time;
-            Plugin.Instance.LastHitTime = Time.time;
-            
-            Plugin.Instance.TotalDamage += val;
-
-            if (type.Contains("Burn")) Plugin.Instance.TotalBurn += val;
-            else if (type.Contains("Poison")) Plugin.Instance.TotalPoison += val;
-            else if (type.Contains("Bleed")) Plugin.Instance.TotalBleed += val;
-            else if (type.Contains("Shock")) Plugin.Instance.TotalShock += val;
-            else if (type.Contains("Curse")) Plugin.Instance.TotalCurse += val;
-            else if (type.Contains("Root")) Plugin.Instance.TotalRoot += val;
-            else if (type.Contains("Freeze") || type.Contains("Chill")) Plugin.Instance.TotalChill += val;
-        }
-
-        private static void UpdateRemoteStatsInternal(int id, float val, string type)
-        {
-            // Ensure the PlayerStats object exists for this ID
-            if (!Plugin.Instance.RemotePlayers.ContainsKey(id))
-            {
-                Plugin.Instance.RemotePlayers[id] = new Plugin.PlayerStats();
-                Debug.Log($"[DPS Meter] Now tracking Remote Player ID: {id}");
-            }
-
-            var stats = Plugin.Instance.RemotePlayers[id];
-            stats.TotalDamage += val;
-
-            if (type.Contains("Burn")) stats.TotalBurn += val;
-            else if (type.Contains("Poison")) stats.TotalPoison += val;
-            else if (type.Contains("Bleed")) stats.TotalBleed += val;
-            else if (type.Contains("Shock")) stats.TotalShock += val;
-            else if (type.Contains("Curse")) stats.TotalCurse += val;
-            else if (type.Contains("Root")) stats.TotalRoot += val;
+            UpdatePlayerStats(attackerID, damageValue, typeStr);
         }
     }
+
+private static void UpdatePlayerStats(int id, float val, string type)
+{
+    // The incoming 'id' is 0, but the list uses 1. 
+    // We define 'lookupId' to bridge that gap.
+    int lookupId = id + 1;
+
+    if (!Plugin.Instance.RemotePlayers.TryGetValue(lookupId, out var stats))
+    {
+        stats = new Plugin.PlayerStats();
+        
+        var pm = RR.PlayerManager.Instance;
+        if (pm != null)
+        {
+            // Match the offset ID against the PlayerManager indexing
+            var playerEntity = pm.GetPlayers().Find(p => p != null && p.FusionPlayerRef.PlayerId == lookupId);
+            
+            if (playerEntity != null && !string.IsNullOrEmpty(playerEntity.UserName))
+            {
+                stats.Name = playerEntity.UserName;
+                Debug.Log($"[DPS] Linked ID {id} to Player {lookupId}: {stats.Name}");
+            }
+            else
+            {
+                stats.Name = $"Player {lookupId}";
+            }
+        }
+
+        // Save using the lookupId so your UI can find it easily
+        Plugin.Instance.RemotePlayers[lookupId] = stats;
+    }
+
+        // --- GLOBAL COMBAT TIMING ---
+        if (Plugin.Instance.StartTime < 0) Plugin.Instance.StartTime = Time.time;
+        Plugin.Instance.LastHitTime = Time.time;
+
+        // --- UNIFORM STAT UPDATING ---
+        stats.TotalDamage += val;
+
+        if (type.Contains("Burn")) stats.TotalBurn += val;
+        else if (type.Contains("Poison")) stats.TotalPoison += val;
+        else if (type.Contains("Bleed")) stats.TotalBleed += val;
+        else if (type.Contains("Shock")) stats.TotalShock += val;
+        else if (type.Contains("Curse")) stats.TotalCurse += val;
+        else if (type.Contains("Root")) stats.TotalRoot += val;
+        else if (type.Contains("Freeze") || type.Contains("Chill") || type.Contains("Frost")) stats.TotalFrost += val;
+    }
+}
 
     [HarmonyPatch(typeof(Attack), "ModifyDamageWithModifierAndCritical")]
     public class MinionDamageHook
     {
         static void Postfix(object __instance, StatsManager victim, ref DamageDescriptor damageDesc, bool onlyForUI)
         {
-            if (onlyForUI) return;
+            //MZa turned off to check if this enables dps tracker on remote player
+            //if (onlyForUI) return;
 
             // Since the method is in the 'Attack' class, '__instance' refers to the Attack object.
             // We need to find the stats associated with this attack.
             // Based on your original code, it looks like 'Attack' has a private field called '_stats'.
+            if (!onlyForUI)
+            {
+                var stats = Traverse.Create(__instance).Field("_stats").GetValue<StatsManager>();
             
-            var stats = Traverse.Create(__instance).Field("_stats").GetValue<StatsManager>();
 
             if (stats != null && stats.IsChampionMinion)
             {
@@ -393,10 +643,15 @@ namespace BlackveilDpsMeter
                     Plugin.Instance.TotalMinion += finalDmg;
                 Debug.Log($"[DPS Meter] Minion {stats.name} dealt {finalDmg} damage to {victim?.name}");
             }
-            else if (damageDesc.damageValue != 0)
-            {
+            }
+            if (damageDesc.damageValue != 0)
+            {   
+                var stats = Traverse.Create(__instance).Field("_stats").GetValue<StatsManager>();
+                float finalDmg = damageDesc.damageValue;
+                Debug.Log($"[DPS Meter] Attacker {stats.name} dealt {finalDmg} damage to {victim?.name}");
                 if (Plugin.Instance.StartTime < 0) Plugin.Instance.StartTime = Time.time;
-                Debug.Log($"[DPS Meter] hit detected. starting dps tracking.");
+                Plugin.Instance.LastHitTime = Time.time;
+                Debug.Log($"[DPS Meter] hit detected. starting dps tracking. working for remote player? {victim?.name} damage: {damageDesc.damageValue}");
             }
         }
     }
@@ -466,7 +721,9 @@ namespace BlackveilDpsMeter
                         TotalPoison = Plugin.Instance.TotalPoison,
                         TotalBleed = Plugin.Instance.TotalBleed,
                         TotalShock = Plugin.Instance.TotalShock,
-                        TotalCurse = Plugin.Instance.TotalCurse
+                        TotalFrost = Plugin.Instance.TotalChill,
+                        TotalCurse = Plugin.Instance.TotalCurse,
+                        TotalMinion = Plugin.Instance.TotalMinion
                     };
                 }
                 else if (Plugin.Instance.RemotePlayers.TryGetValue(playerRef.PlayerId, out var remoteStats))
@@ -480,7 +737,8 @@ namespace BlackveilDpsMeter
                         (int)statsToSync.TotalDamage, (int)statsToSync.TotalBurn,
                         (int)statsToSync.TotalRoot, (int)statsToSync.TotalPoison,
                         (int)statsToSync.TotalBleed, (int)statsToSync.TotalShock,
-                        (int)statsToSync.TotalCurse);
+                        (int)statsToSync.TotalFrost, (int)statsToSync.TotalCurse, 
+                        (int)statsToSync.TotalMinion);
 
                     userName = $"{userName}{Separator}{dataPacket}";
                      Debug.Log($"[DPS] Host Sending {userName}");
@@ -497,7 +755,7 @@ namespace BlackveilDpsMeter
                     if (mainParts.Length > 1)
                     {
                         string[] values = mainParts[1].Split(',');
-                        if (values.Length >= 7)
+                        if (values.Length >= 9)
                         {
                             string cleanName = mainParts[0]; // This is the player.UserName
                              Debug.Log($"[DPS] Client Receiving Data for Player {cleanName}: {string.Join(",", values)}");
