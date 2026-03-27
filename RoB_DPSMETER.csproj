@@ -26,6 +26,10 @@
     <Reference Include="UnityEngine.UIModule">
         <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\UnityEngine.UIModule.dll</HintPath>
     </Reference>
+    
+    <Reference Include="UnityEngine.UIElementsModule">
+        <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\UnityEngine.UIElementsModule.dll</HintPath>
+    </Reference>
 
     <Reference Include="UnityEngine.InputLegacyModule">
         <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
@@ -39,6 +43,10 @@
         <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
     </Reference>
 
+    <Reference Include="Unity.TextMeshPro">
+        <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\Unity.TextMeshPro.dll</HintPath>
+    </Reference>
+ 
     <Reference Include="BepInEx">
         <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\BepInEx\core\BepInEx.dll</HintPath>
     </Reference>

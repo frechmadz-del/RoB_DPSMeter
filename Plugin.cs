@@ -15,8 +15,11 @@ using RR.Game.Input;
 using System.Reflection;
 using RR.UI.Controls.Inventory;
 using UnityEngine.UIElements;
+using UnityEngine.UIElements.UIR;
 using RR;
 using Fusion;
+using TMPro;
+using System.Linq;
 
 namespace BlackveilDpsMeter
 {
@@ -38,6 +41,7 @@ namespace BlackveilDpsMeter
         public float StartTime = -1f;
         public float LastHitTime = -1f; // out of fight timer
         public static bool IsSyncingDps = false;
+        private bool _hasInitialized = false;
 
         void Awake()
         {
@@ -81,6 +85,25 @@ namespace BlackveilDpsMeter
                 ResetMeter();
                 Logger.LogInfo($"Meter reset via Scene Load: {scene.name}");
             }
+            if (this == null || !this.gameObject.activeInHierarchy)
+            {
+                return;
+            }
+            if (!_hasInitialized)
+            {
+                StartCoroutine(WaitForLevelLoad());
+                Logger.LogInfo($"First scene loaded: {scene.name}. DPS Meter is now active.");
+            }
+
+            _hasInitialized = true;
+        }
+        private IEnumerator WaitForLevelLoad()
+        {
+            // Wait until the game's player system is actually ready
+            while (PlayerManager.Instance == null || PlayerManager.Instance.GetPlayers().Count == 0)
+            {
+                yield return new WaitForSeconds(1.0f);
+            }
         }
         public class PlayerStats
         {
@@ -94,7 +117,7 @@ namespace BlackveilDpsMeter
             public float TotalCurse;
         }
 
-// This is the variable the compiler was looking for
+        // This is the variable the compiler was looking for
         public Dictionary<int, PlayerStats> RemotePlayers = new Dictionary<int, PlayerStats>();
 
         // A simple class to hold remote player stats (you can expand this as needed)
@@ -122,185 +145,313 @@ namespace BlackveilDpsMeter
     // This class handles the actual rendering and stays alive forever
     public class PersistentUI : MonoBehaviour
     {
-        private Text _uiText;
+        private TMP_SpriteAsset _gameSpriteAsset = null;
+
+        private float nextSyncTime = 0f;
+        private bool _spritesLinked = false;
         private GameObject _canvasObj;
         private GameObject _panelObj;
+        // We change the dictionary to store TextMeshPro components
+        private Dictionary<string, TextMeshProUGUI> _dpsTextRefs = new Dictionary<string, TextMeshProUGUI>();
+
+        private static readonly Dictionary<string, string> StatIconMap = new Dictionary<string, string>
+        {
+            { "burn", "PerkEffect_Icon_Burn" },
+            { "poison", "PerkEffect_Icon_Poison" },
+            { "bleed", "PerkEffect_Icon_Bleed" },
+            { "shock", "PerkEffect_Icon_Shock" },
+            { "frozen", "PerkEffect_Icon_Chilled" }, // "frozen" in code -> "Chilled" in assets
+            { "root", "PerkEffect_Icon_Root" },
+            { "summon", "PerkEffect_Icon_Summon" },
+            { "curse", "Stats_Icon_Curse" },
+        };
 
         void Start()
         {
-            // 1. Create the Root Canvas
+            // 1. Setup UI Root
             _canvasObj = new GameObject("DPS_Overlay_Canvas");
             Object.DontDestroyOnLoad(_canvasObj);
-            
-            Canvas canvas = _canvasObj.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 999; // Force to top
-
-            // Essential for Unity 2022.3 UI Modules
+            _canvasObj.AddComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
             _canvasObj.AddComponent<GraphicRaycaster>();
 
-            // 2. Create the Background PANEL (Opaque)
             _panelObj = new GameObject("DPS_Background_Panel");
             _panelObj.transform.SetParent(_canvasObj.transform, false);
+            _panelObj.AddComponent<UnityEngine.UI.Image>().color = new Color(0, 0, 0, 0.85f);
 
-            Image panelImage = _panelObj.AddComponent<Image>();
+            RectTransform panelRect = _panelObj.GetComponent<RectTransform>();
+            panelRect.anchorMin = panelRect.anchorMax = panelRect.pivot = new Vector2(1, 0.5f);
+            panelRect.anchoredPosition = new Vector2(-10, 0);
+            panelRect.sizeDelta = new Vector2(260, 240); 
+
+            // 2. Layout Group (Keeps rows tidy)
+            VerticalLayoutGroup vlg = _panelObj.AddComponent<VerticalLayoutGroup>();
+            vlg.padding = new RectOffset(10, 10, 10, 10);
+            vlg.spacing = 4;
+            vlg.childControlHeight = true;
+            vlg.childControlWidth = true;
+            vlg.childForceExpandHeight = false;
+
             
-            // Set Color: Black (0,0,0) with 80% Opacity (0.8f Alpha)
-            // If you want it 100% opaque, set alpha to 1.0f.
-            panelImage.color = new Color(0f, 0f, 0f, 0.8f); 
 
-            // Anchoring and Scaling the Panel (Right-Center)
-            RectTransform panelRect = panelImage.GetComponent<RectTransform>();
-            panelRect.anchorMin = new Vector2(1, 0.5f); // Right side, Middle height
-            panelRect.anchorMax = new Vector2(1, 0.5f);
-            panelRect.pivot = new Vector2(1, 0.5f);
-            panelRect.anchoredPosition = new Vector2(-10, 0); // 10 pixels in from the edge
-            panelRect.sizeDelta = new Vector2(220, 170); // FIXED SIZE (Width, Height)
+            // 3. Create the Rows using the game's Sprite Names
+            // These icon names must match the game's Sprite Asset
+            CreateProperRow("TOTAL", "#FFFFFF", ""); 
+            CreateProperRow("BURN", "#FFA500", "burn");
+            CreateProperRow("POISON", "#800080", "poison");
+            CreateProperRow("BLEED", "#FF0000", "bleed");
+            CreateProperRow("SHOCK", "#d9ff00", "shock");
+            CreateProperRow("ROOT", "#805700", "root");
+            CreateProperRow("FROST", "#00FFFF", "frozen");
+            CreateProperRow("CURSE", "#019262", "curse");
+            CreateProperRow("MINION", "#ff00f2", "summon");
 
-            // 3. Create the TEXT Display (As child of the panel)
-            GameObject textObj = new GameObject("DPS_Text_Display");
-            textObj.transform.SetParent(_panelObj.transform, false);
+        }
+        // public Sprite GetStatSprite(string key)
+        // {
+        //     if (!StatIconMap.TryGetValue(key.ToLower(), out string texName))
+        //     {
+        //         Debug.LogWarning($"[DPS Meter] No icon mapping found for key: {key}");
+        //         return null;
+        //     }
 
-            _uiText = textObj.AddComponent<Text>();
+        //     // Search for the specific texture by name
+        //     Texture2D tex = null;
+        //     var allTextures = Resources.FindObjectsOfTypeAll<Texture2D>();
+        //     foreach (var t in allTextures)
+        //     {
+        //         if (t.name == texName)
+        //         {
+        //             tex = t;
+        //             break;
+        //         }
+        //     }
+
+        //     if (tex != null)
+        //     {
+        //         // Create the sprite from the found texture
+        //         return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+        //     }
+
+        //     return null;
+        // }
+
+        private Sprite GetStatSprite(string iconName)
+        {
+            // Exact names from your previous log dump
+            string texName = iconName.ToLower() switch
+            {
+                "burn" => "PerkEffect_Icon_Burn",
+                "poison" => "PerkEffect_Icon_Poison",
+                "bleed" => "PerkEffect_Icon_Bleed",
+                "shock" => "PerkEffect_Icon_Shock",
+                "frozen" => "PerkEffect_Icon_Chilled",
+                "root" => "PerkEffect_Icon_Root",
+                "curse" => "Stats_Icon_Curse",
+                _ => "StatType_Default" 
+            };
+
+            // Try to find the texture
+            Texture2D tex = Resources.FindObjectsOfTypeAll<Texture2D>()
+                            .FirstOrDefault(t => t.name.Equals(texName, System.StringComparison.OrdinalIgnoreCase));
+
+            // If the specific icon failed, try to find ANY icon as a fallback
+            if (tex == null) tex = Resources.FindObjectsOfTypeAll<Texture2D>().FirstOrDefault(t => t.name == "StatType_Default");
+
+            if (tex != null)
+            {
+                // IMPORTANT: Create the sprite with the correct dimensions
+                return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+            }
+
+            return null;
+}
+
+        private void CreateProperRow(string key, string hex, string iconName)
+        {
+            // 1. Main Row Container
+            GameObject rowObj = new GameObject(key + "_Row");
+            rowObj.transform.SetParent(_panelObj.transform, false);
+
+            // 2. Layout Group (The "Glue" that fixes the overlapping)
+            var layout = rowObj.AddComponent<UnityEngine.UI.HorizontalLayoutGroup>();
+            layout.spacing = 10;
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            layout.childControlWidth = true;  // Let the text expand
+            layout.childControlHeight = true; // Match row height
+            layout.childForceExpandWidth = false;
+
+            // 3. Create the Icon
+            GameObject iconGo = new GameObject(key + "_Icon");
+            iconGo.transform.SetParent(rowObj.transform, false);
             
-            // Set Font: Using Builtin Arial for maximum compatibility
-            _uiText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            _uiText.fontSize = 15;
-            _uiText.color = Color.yellow;
+            var img = iconGo.AddComponent<UnityEngine.UI.Image>();
+            Sprite iconSprite = GetStatSprite(iconName);
             
-            // Alignment: Middle-Right looks best when pinned to the right side
-            _uiText.alignment = TextAnchor.UpperLeft; 
-            _uiText.horizontalOverflow = HorizontalWrapMode.Overflow;
-            _uiText.verticalOverflow = VerticalWrapMode.Overflow;
+            if (iconSprite != null) {
+                img.sprite = iconSprite;
+            } else {
+                img.color = new Color(0, 0, 0, 0); // Hide the image if sprite is missing
+            }
 
-            // Positioning Text within the Panel
-            RectTransform textRect = textObj.GetComponent<RectTransform>();
-            textRect.anchorMin = Vector2.zero; // Stretch to parent panel
-            textRect.anchorMax = Vector2.one;
+            var layoutElem = iconGo.AddComponent<UnityEngine.UI.LayoutElement>();
+            layoutElem.minWidth = 20;
+            layoutElem.minHeight = 20;
+            layoutElem.preferredWidth = 20;
+            layoutElem.preferredHeight = 20;
 
-            // ADDING PADDING:
-            // Left offset = 15 (Push text 15 pixels away from left edge)
-            // Right offset = 10 (Push numbers slightly in from right edge)
-            textRect.offsetMin = new Vector2(15, 0); 
-            textRect.offsetMax = new Vector2(-10, 0);  
+            // You can still keep this for the base transform size
+            var iconRect = iconGo.GetComponent<RectTransform>();
+            iconRect.sizeDelta = new Vector2(20, 20);
+
+            // 4. Create the Text
+            GameObject textGo = new GameObject(key + "_Text");
+            textGo.transform.SetParent(rowObj.transform, false);
+            
+            TextMeshProUGUI tmp = textGo.AddComponent<TextMeshProUGUI>();
+            tmp.fontSize = 14; // Slightly smaller to fit your UI better
+            tmp.alignment = TextAlignmentOptions.Left;
+            tmp.enableWordWrapping = false;
+            
+            if (ColorUtility.TryParseHtmlString(hex, out Color c))
+                tmp.color = c;
+
+            _dpsTextRefs[key] = tmp;
         }
 
         void Update()
         {
-            // Safety check: The UI will only update if the plugin successfully captured the start time
             if (Plugin.Instance.StartTime > 0)
-            {
-                    // Check if we are "In Combat" (Hit within the last 1.0 seconds)
-                    // 1. Determine if we are currently hitting things
-                    bool inCombat = (Time.time - Plugin.Instance.LastHitTime) <= 1.0f;
+            { 
+                
+                bool inCombat = (Time.time - Plugin.Instance.LastHitTime) <= 1.0f;
+                if (inCombat) Plugin.Instance.ActiveCombatTime += Time.deltaTime;
 
-                    // 2. Only tick the clock forward if we are in combat
-                    if (inCombat)
-                    {
-                        Plugin.Instance.ActiveCombatTime += Time.deltaTime;
-                    }
+                float displayTime = Mathf.Max(0.1f, Plugin.Instance.ActiveCombatTime);
+                float dps_Total = Plugin.Instance.TotalDamage / displayTime;
 
-                    float displayTime = Mathf.Max(0.1f, Plugin.Instance.ActiveCombatTime);
+                // NEW: Lazy-link the sprites once combat starts
+                if (!_spritesLinked) 
+                {
+                    _spritesLinked = TryLinkGameSprites();
+                }
 
-                    if (displayTime > 0.1f)
-                    {           
-                        
-                        float dps_Total = Plugin.Instance.TotalDamage / displayTime;
-                        // Use a small helper function to keep the code clean
-                        string FormatLine(string label, float val) => 
-                            $"{label} DPS: {val / displayTime:F1} ({(val / displayTime / dps_Total) * 100:F1}%)";
-                        // Use a small helper function for colors
-                        string ColorText(string text, string hex) => $"<color={hex}>{text}</color>";
-                        // --- CLIPPED BAR LOGIC ---
-                        int barWidth = 18; // Total character slots
-                        int remainingSlots = barWidth;
-                        string visualBar = "";
+                void UpdateRow(string key, float totalDmg)
+                {
+                    if (!_dpsTextRefs.TryGetValue(key, out TextMeshProUGUI tmp)) return;
 
-                        // Local helper to handle the clipping math
-                        void AddClippedSegment(float damage, string hex) {
-                            if (damage <= 0 || remainingSlots <= 0) return;
+                    float currentDps = totalDmg / displayTime;
+                    float pct = (dps_Total > 0.1f) ? (currentDps / dps_Total) * 100f : 0f;
 
-                            // Calculate proportional slots
-                            int slots = Mathf.RoundToInt((damage/ displayTime / dps_Total) * barWidth);
-                            
-                            // CLIP: Ensure we don't take more than what's left
-                            slots = Mathf.Min(slots, remainingSlots);
-                            
-                            if (slots > 0) {
-                                visualBar += $"<color={hex}>{new string('█', slots)}</color>";
-                                remainingSlots -= slots;
-                            }
-                        }
+                    // Prepend the icon tag stored in the GameObject name
+                    tmp.text = $"{tmp.gameObject.name}{key}: {currentDps:F1} ({pct:F1}%)";
+                }
 
-                        // Add segments in order of priority
-                        AddClippedSegment(Plugin.Instance.TotalBurn, "#FFA500");
-                        AddClippedSegment(Plugin.Instance.TotalPoison, "#800080");
-                        AddClippedSegment(Plugin.Instance.TotalBleed, "#FF0000");
-                        AddClippedSegment(Plugin.Instance.TotalShock, "#d9ff00");
-                        AddClippedSegment(Plugin.Instance.TotalRoot, "#805700");
-                        AddClippedSegment(Plugin.Instance.TotalChill, "#00FFFF");
-                        AddClippedSegment(Plugin.Instance.TotalCurse, "#019262");
-                        AddClippedSegment(Plugin.Instance.TotalMinion, "#ff00f2");
-
-                        // FILLER: If damage types don't sum to 100% (Raw damage), or rounding left a gap
-                        if (remainingSlots > 0) {
-                            visualBar += $"<color=#555555>{new string('█', remainingSlots)}</color>";
-                        }
-                        // -------------------------
-
-
-                        _uiText.text = string.Join("\n", 
-                            visualBar,
-                            ColorText($"TOTAL DPS: {dps_Total:F1}", "#FFFFFF"),
-                            ColorText(FormatLine("BURN", Plugin.Instance.TotalBurn), "#FFA500"),
-                            ColorText(FormatLine("POISON", Plugin.Instance.TotalPoison), "#800080"),
-                            ColorText(FormatLine("BLEED", Plugin.Instance.TotalBleed), "#FF0000"),
-                            ColorText(FormatLine("SHOCK", Plugin.Instance.TotalShock), "#d9ff00"),
-                            ColorText(FormatLine("ROOT", Plugin.Instance.TotalRoot), "#805700"),
-                            ColorText(FormatLine("FROST", Plugin.Instance.TotalChill), "#00FFFF"),
-                            ColorText(FormatLine("CURSE", Plugin.Instance.TotalCurse), "#019262"),
-                            ColorText(FormatLine("MINION", Plugin.Instance.TotalMinion), "#ff00f2")
-                        );
-                    }
-                    else
-                    {
-                        // Optional: Dim the text or add "(PAUSED)" to show combat ended
-                        _uiText.color = new Color(0.7f, 0.7f, 0f); // Dimmer Yellow
-                        // We don't recalculate DPS here, so it stays frozen at the last value
-                    }
+                // Refresh all lines
+                _dpsTextRefs["TOTAL"].text = $"TOTAL: {dps_Total:F1}";
+                UpdateRow("BURN", Plugin.Instance.TotalBurn);
+                UpdateRow("POISON", Plugin.Instance.TotalPoison);
+                UpdateRow("BLEED", Plugin.Instance.TotalBleed);
+                UpdateRow("SHOCK", Plugin.Instance.TotalShock);
+                UpdateRow("ROOT", Plugin.Instance.TotalRoot);
+                UpdateRow("FROST", Plugin.Instance.TotalChill);
+                UpdateRow("CURSE", Plugin.Instance.TotalCurse);
+                UpdateRow("MINION", Plugin.Instance.TotalMinion);
             }
+        
 
             if (UnityEngine.InputSystem.Keyboard.current.f10Key.wasPressedThisFrame)
             {
                 Plugin.Instance.ResetMeter();
             }
+            if (UnityEngine.InputSystem.Keyboard.current.f9Key.wasPressedThisFrame)
+                {
+                    Debug.Log("[DPS Meter] Scanning for Icon Textures...");
+                    Texture2D[] allTextures = Resources.FindObjectsOfTypeAll<Texture2D>();
+                    foreach (var tex in allTextures)
+                    {
+                        // Filter for common icon naming conventions
+                        if (tex.name.ToLower().Contains("icon") || tex.name.ToLower().Contains("stat") || tex.name.ToLower().Contains("sprite"))
+                        {
+                            Debug.Log($"[DPS Meter] Found Texture: {tex.name} ({tex.width}x{tex.height})");
+                        }
+                    }
+                }
             // Sync with lobby (for host and clients)
             if (PlayerManager.Instance != null && PlayerManager.Instance.LocalChampion != null)
             {
                 var localChamp = PlayerManager.Instance.LocalChampion;
                 var runner = localChamp.Runner; // Get the NetworkRunner from the champion
-                float nextSyncTime = 0f; // Initialize next sync time     
-
-                if (runner.IsServer && runner.IsRunning && Time.time > nextSyncTime)
+                if (runner != null && runner.IsServer && runner.IsRunning)
                 {
-                    nextSyncTime = Time.time + 2.0f;
-
-                    foreach (var player in PlayerManager.Instance.GetPlayers()) // Or your player list
+                    // 2. Only proceed if current time has passed the target sync time
+                    if (Time.time > nextSyncTime)
                     {
-                        Debug.Log($"[DPS] Host sync loop running for {player.UserName} player.");
-                        // Trigger the RPC for each player
-                        // Our Patch (below) will intercept this and attach that specific player's stats
-                        PlayerManager.Instance.RPC_Handle_SetUserData_All(
-                            player.Object.InputAuthority, 
-                            player.UserName, 
-                            player.ProfileUUID
-                        );
+                        // 3. Immediately set the next target time (Current time + 2 seconds)
+                        nextSyncTime = Time.time + 2.0f;
+
+                        foreach (var player in PlayerManager.Instance.GetPlayers())
+                        {
+                            if (player == null || player.Object == null) continue;
+
+                            Debug.Log($"[DPS] Host sync loop running for {player.UserName}");
+                            
+                            // Trigger the RPC
+                            PlayerManager.Instance.RPC_Handle_SetUserData_All(
+                                player.Object.InputAuthority, 
+                                player.UserName, 
+                                player.ProfileUUID
+                            );
+                        }
                     }
                 }
             }
             // Inside your Update loop
 
         }
+        private bool TryLinkGameSprites()
+        {
+            // 1. Try to find any SpriteAsset directly in memory (most reliable for Addressables)
+            TMP_SpriteAsset[] allAssets = Resources.FindObjectsOfTypeAll<TMP_SpriteAsset>();
+            
+            foreach (var asset in allAssets)
+            {
+                // Ignore the empty default one; we want the one with the game's icons
+                if (asset.name != "Default Sprite Asset" && asset.spriteCharacterTable.Count > 0)
+                {
+                    _gameSpriteAsset = asset;
+                    ApplySpriteAssetToUI();
+                    Debug.Log($"[DPS Meter] FOUND Sprite Asset in memory: {asset.name} (Icons: {asset.spriteCharacterTable.Count})");
+                    return true;
+                }
+            }
+
+            // 2. Fallback: Search through ALL TextMeshPro components if the direct search failed
+            var allTMP = Resources.FindObjectsOfTypeAll<TextMeshProUGUI>();
+            foreach (var ui in allTMP)
+            {
+                if (ui.spriteAsset != null && ui.spriteAsset.name != "Default Sprite Asset")
+                {
+                    _gameSpriteAsset = ui.spriteAsset;
+                    ApplySpriteAssetToUI();
+                    Debug.Log($"[DPS Meter] FOUND Sprite Asset via UI Element: {ui.spriteAsset.name}");
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void ApplySpriteAssetToUI()
+        {
+            foreach (var row in _dpsTextRefs.Values)
+            {
+                row.spriteAsset = _gameSpriteAsset;
+                // Force a refresh of the text to re-parse the <sprite> tag
+                row.SetAllDirty();
+            }
+        }
+
+        
     }
 
     // patch to fetch dmgh remote
