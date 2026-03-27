@@ -641,7 +641,9 @@ private static void UpdatePlayerStats(int id, float val, string type)
                 float finalDmg = damageDesc.damageValue;
                 if (Plugin.Instance.StartTime < 0) Plugin.Instance.StartTime = Time.time;
                     Plugin.Instance.TotalMinion += finalDmg;
+                    Plugin.Instance.LastHitTime = Time.time;
                 Debug.Log($"[DPS Meter] Minion {stats.name} dealt {finalDmg} damage to {victim?.name}");
+                // Traverse can pull all field names and values into a dictionary
             }
             }
             if (damageDesc.damageValue != 0)
@@ -651,7 +653,14 @@ private static void UpdatePlayerStats(int id, float val, string type)
                 Debug.Log($"[DPS Meter] Attacker {stats.name} dealt {finalDmg} damage to {victim?.name}");
                 if (Plugin.Instance.StartTime < 0) Plugin.Instance.StartTime = Time.time;
                 Plugin.Instance.LastHitTime = Time.time;
-                Debug.Log($"[DPS Meter] hit detected. starting dps tracking. working for remote player? {victim?.name} damage: {damageDesc.damageValue}");
+                var fields = Traverse.Create(stats).Fields();
+                
+                Debug.Log($"--- Inspecting StatsManager ({fields.Count} fields found) ---");
+                foreach (var fieldName in fields)
+                {
+                    var val = Traverse.Create(stats).Field(fieldName).GetValue();
+                    Debug.Log($"Field: {fieldName} | Value: {val}");
+                }
             }
         }
     }
