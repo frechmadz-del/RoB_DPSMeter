@@ -123,7 +123,7 @@ namespace BlackveilDpsMeter
             float.TryParse(values[5], out stats.TotalShock);
             float.TryParse(values[6], out stats.TotalCurse);
             float.TryParse(values[7], out stats.TotalFrost);
-            float.TryParse(values[9], out stats.TotalMinion);
+            float.TryParse(values[8], out stats.TotalMinion);
 
         }
     }
@@ -632,31 +632,8 @@ private static void UpdatePlayerStats(int id, float val, string type)
             // Since the method is in the 'Attack' class, '__instance' refers to the Attack object.
             // We need to find the stats associated with this attack.
             // Based on your original code, it looks like 'Attack' has a private field called '_stats'.
-            if (!onlyForUI)
-            {
-                var stats = Traverse.Create(__instance).Field("_stats").GetValue<StatsManager>();
-            
 
-            if (stats != null && stats.IsChampionMinion)
-            {
-                float finalDmg = damageDesc.damageValue;
-                if (Plugin.Instance.StartTime < 0) Plugin.Instance.StartTime = Time.time;
-                    Plugin.Instance.TotalMinion += finalDmg;
-                    Plugin.Instance.LastHitTime = Time.time;
-                Debug.Log($"[DPS Meter] Minion {stats.name} dealt {finalDmg} damage to {victim?.name}");
-                // Traverse can pull all field names and values into a dictionary
-                var fields = Traverse.Create(stats).Fields();
-                
-                Debug.Log($"--- Inspecting StatsManager ({fields.Count} fields found) ---");
-                foreach (var fieldName in fields)
-                {
-                    var val = Traverse.Create(stats).Field(fieldName).GetValue();
-                    Debug.Log($"Field: {fieldName} | Value: {val}");
-                }
-                
-            }
-            }
-            if (damageDesc.damageValue != 0)
+            if (damageDesc.damageValue != 0 && onlyForUI)
             {   
                 var stats = Traverse.Create(__instance).Field("_stats").GetValue<StatsManager>();
                 float finalDmg = damageDesc.damageValue;
@@ -728,10 +705,64 @@ private static void UpdatePlayerStats(int id, float val, string type)
             }
         }
     }
+public static class DamageIdentityBridge
+{
+    // This "remembers" the minion ID for the duration of one hit
+    public static int ActiveMinionActorID = -1;
 
+    [HarmonyPatch(typeof(RR.Game.Stats.Health), "TakeBasicDamage")]
+    public static class TakeBasicDamagePatch
+    {
+        static void Prefix(StatsManager attacker)
+        {
+            // If the attacker is a minion (ID > 10 usually), remember its ID
+            if (attacker != null && attacker.ActorID > 10)
+            {
+                ActiveMinionActorID = attacker.ActorID;
+            }
+            else
+            {
+                ActiveMinionActorID = -1;
+            }
+        }
+
+        static void Postfix()
+        {
+            // Clear it after the hit is fully processed to avoid misattribution
+            ActiveMinionActorID = -1;
+        }
+    }
+
+    [HarmonyPatch(typeof(RR.Game.Stats.Health), "AddDamageData")]
+    public static class AddDamageDataPatch
+    {
+        static void Prefix(float damageValue, int attackerID)
+        {
+            // If the game says the attacker is ID 0 (Owner/You),
+            // but our Bridge remembers a Minion ID (like 14)...
+            bool isMinionHit = (ActiveMinionActorID != -1);
+
+            // Apply your standard FusionID offset
+            int lookupId = (attackerID == 0) ? 1 : attackerID + 1;
+
+            if (Plugin.Instance.RemotePlayers.TryGetValue(lookupId, out var stats))
+            {
+                if (isMinionHit)
+                {
+                    // Success! We've distilled the damage
+                    stats.TotalMinion += damageValue;
+                    Debug.Log($"[DPS] Distilled {damageValue} Minion Damage from Actor {ActiveMinionActorID} (credited to Owner {attackerID})");
+                }
+            }
+        }
+    }
+}
     // sending to DPS to lobby
+    /// <summary>
+    /// 
+    /// </summary>
 
-    [HarmonyPatch(typeof(RR.PlayerManager), "RPC_Handle_SetUserData_All")]
+[HarmonyPatch(typeof(RR.PlayerManager), "RPC_Handle_SetUserData_All")]
    public static class DpsSyncPatch
     {
         private const string Separator = "«DPS»";
