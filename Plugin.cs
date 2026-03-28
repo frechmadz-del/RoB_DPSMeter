@@ -33,8 +33,9 @@ namespace BlackveilDpsMeter
         public float TotalPoison = 0f;
         public float TotalBleed = 0f;   
         public float TotalShock = 0f;
-        public float TotalChill = 0f;
+        public float TotalFrost = 0f;
         public float TotalCurse = 0f;
+        public float TotalBless = 0f;
         public float ActiveCombatTime = 0f; // New: Tracks accumulated combat seconds
         public float StartTime = -1f;
         public float LastHitTime = -1f; // out of fight timer
@@ -69,7 +70,7 @@ namespace BlackveilDpsMeter
             Plugin.Instance.TotalPoison = 0f;
             Plugin.Instance.TotalBleed = 0f;
             Plugin.Instance.TotalShock = 0f;
-            Plugin.Instance.TotalChill = 0f;
+            Plugin.Instance.TotalFrost = 0f;
             Plugin.Instance.TotalCurse = 0f;
             Plugin.Instance.TotalMinion = 0f;
             Plugin.Instance.ActiveCombatTime = 0.11f;
@@ -122,7 +123,7 @@ namespace BlackveilDpsMeter
             float.TryParse(values[5], out stats.TotalShock);
             float.TryParse(values[6], out stats.TotalCurse);
             float.TryParse(values[7], out stats.TotalFrost);
-            float.TryParse(values[8], out stats.TotalMinion);
+            float.TryParse(values[9], out stats.TotalMinion);
 
         }
     }
@@ -261,7 +262,7 @@ namespace BlackveilDpsMeter
                     AddClippedSegment(Plugin.Instance.TotalBleed, "#FF0000");
                     AddClippedSegment(Plugin.Instance.TotalShock, "#d9ff00");
                     AddClippedSegment(Plugin.Instance.TotalRoot, "#805700");
-                    AddClippedSegment(Plugin.Instance.TotalChill, "#00FFFF");
+                    AddClippedSegment(Plugin.Instance.TotalFrost, "#00FFFF");
                     AddClippedSegment(Plugin.Instance.TotalCurse, "#019262");
                     AddClippedSegment(Plugin.Instance.TotalMinion, "#ff00f2");
 
@@ -280,7 +281,7 @@ namespace BlackveilDpsMeter
                         ColorText(FormatLine("BLEED", Plugin.Instance.TotalBleed), "#FF0000"),
                         ColorText(FormatLine("SHOCK", Plugin.Instance.TotalShock), "#d9ff00"),
                         ColorText(FormatLine("ROOT", Plugin.Instance.TotalRoot), "#805700"),
-                        ColorText(FormatLine("FROST", Plugin.Instance.TotalChill), "#00FFFF"),
+                        ColorText(FormatLine("FROST", Plugin.Instance.TotalFrost), "#00FFFF"),
                         ColorText(FormatLine("CURSE", Plugin.Instance.TotalCurse), "#019262"),
                         ColorText(FormatLine("MINION", Plugin.Instance.TotalMinion), "#ff00f2")
                     );
@@ -342,7 +343,7 @@ namespace BlackveilDpsMeter
                     Plugin.Instance.TotalBleed = myData.TotalBleed;
                     Plugin.Instance.TotalShock = myData.TotalShock;
                     Plugin.Instance.TotalRoot = myData.TotalRoot;
-                    Plugin.Instance.TotalChill = myData.TotalFrost;
+                    Plugin.Instance.TotalFrost = myData.TotalFrost;
                     Plugin.Instance.TotalCurse = myData.TotalCurse;
                     Plugin.Instance.TotalMinion = myData.TotalMinion;
 
@@ -644,6 +645,15 @@ private static void UpdatePlayerStats(int id, float val, string type)
                     Plugin.Instance.LastHitTime = Time.time;
                 Debug.Log($"[DPS Meter] Minion {stats.name} dealt {finalDmg} damage to {victim?.name}");
                 // Traverse can pull all field names and values into a dictionary
+                var fields = Traverse.Create(stats).Fields();
+                
+                Debug.Log($"--- Inspecting StatsManager ({fields.Count} fields found) ---");
+                foreach (var fieldName in fields)
+                {
+                    var val = Traverse.Create(stats).Field(fieldName).GetValue();
+                    Debug.Log($"Field: {fieldName} | Value: {val}");
+                }
+                
             }
             }
             if (damageDesc.damageValue != 0)
@@ -653,6 +663,7 @@ private static void UpdatePlayerStats(int id, float val, string type)
                 Debug.Log($"[DPS Meter] Attacker {stats.name} dealt {finalDmg} damage to {victim?.name}");
                 if (Plugin.Instance.StartTime < 0) Plugin.Instance.StartTime = Time.time;
                 Plugin.Instance.LastHitTime = Time.time;
+                // Traverse can pull all field names and values into a dictionary
                 var fields = Traverse.Create(stats).Fields();
                 
                 Debug.Log($"--- Inspecting StatsManager ({fields.Count} fields found) ---");
@@ -671,32 +682,47 @@ private static void UpdatePlayerStats(int id, float val, string type)
         [HarmonyPostfix]
         static void Postfix(StatsManager __instance, StatsManager victim, ref DamageDescriptor dmgDesc, bool calcForUI)
         {
-            if (calcForUI || victim == null) return;
+            if (calcForUI || victim == null || __instance == null) return;
 
-            // To find the delta, we manually check the multiplier logic 
-            // used in the original method.
+            // 1. Get the ActorID from the Attacker (__instance)
+            // Based on your log: Field: <ActorID>k__BackingField
+            int attackerActorID = Traverse.Create(__instance).Field("<ActorID>k__BackingField").GetValue<int>();
+
+            // 2. Apply your +1 offset to match the PlayerManager/Dictionary indexing
+            int lookupId = attackerActorID + 1;
+
             if (victim.IsFrozen)
             {
-                Debug.Log($"[DPS Meter] Victim {victim.name} is frozen. Checking for Chill multiplier...");
-                // Access the 'Chill' component from the character that dealt the damage
                 var chill = __instance.GetComponent<RR.Game.Stats.Chill>();
-                Debug.Log($"[DPS Meter] Hooking into: {__instance.name}");
-
-                if (chill != null && victim.IsFrozen)
+                
+                if (chill != null)
                 {
                     float multiplier = chill.DamageMultiplierAgainstFrozenTarget;
-                    Debug.Log($"[DPS Meter] Checking {multiplier} against frozen target.");
                     
-                    // The damage currently in dmgDesc.damageValue ALREADY has the multiplier.
-                    // Formula: OriginalDamage = FinalDamage / Multiplier
+                    // Prevent division by zero if multiplier isn't set
+                    if (multiplier <= 1.0f) return;
+
                     float damageBeforeFrozen = dmgDesc.damageValue / multiplier;
                     float frozenDelta = dmgDesc.damageValue - damageBeforeFrozen;
 
                     if (frozenDelta > 0)
                     {
-                        Debug.Log($"[DPS Meter] Frozen Bonus Damage: {frozenDelta} (Total: {dmgDesc.damageValue})");
-                        // Add frozenDelta to your "Frozen Damage" category in the meter
-                        Plugin.Instance.TotalChill += frozenDelta;
+                        // 3. Find the correct player stats in your dictionary
+                        if (Plugin.Instance.RemotePlayers.TryGetValue(lookupId, out var stats))
+                        {
+                            stats.TotalFrost += frozenDelta;
+                            
+                            // Also track global combat timing for this player
+                            if (Plugin.Instance.StartTime < 0) Plugin.Instance.StartTime = Time.time;
+                            Plugin.Instance.LastHitTime = Time.time;
+
+                            Debug.Log($"[DPS Meter] Actor {attackerActorID} (Key {lookupId}) dealt {frozenDelta} Frozen Bonus Damage.");
+                        }
+                        else
+                        {
+                            // Fallback: If stats don't exist yet, create them or log the miss
+                            Debug.LogWarning($"[DPS Meter] Received Frozen Damage for Actor {attackerActorID}, but no RemotePlayer found at Key {lookupId}");
+                        }
                     }
                 }
             }
@@ -724,13 +750,14 @@ private static void UpdatePlayerStats(int id, float val, string type)
                 if (playerRef == runner.LocalPlayer)
                 {
                     statsToSync = new Plugin.PlayerStats {
+                        Name = userName,
                         TotalDamage = Plugin.Instance.TotalDamage,
                         TotalBurn = Plugin.Instance.TotalBurn,
                         TotalRoot = Plugin.Instance.TotalRoot,
                         TotalPoison = Plugin.Instance.TotalPoison,
                         TotalBleed = Plugin.Instance.TotalBleed,
                         TotalShock = Plugin.Instance.TotalShock,
-                        TotalFrost = Plugin.Instance.TotalChill,
+                        TotalFrost = Plugin.Instance.TotalFrost,
                         TotalCurse = Plugin.Instance.TotalCurse,
                         TotalMinion = Plugin.Instance.TotalMinion
                     };
