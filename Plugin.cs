@@ -18,6 +18,7 @@ using UnityEngine.UIElements;
 using RR;
 using Fusion;
 using System.Linq;
+using TMPro;
 
 namespace BlackveilDpsMeter
 {
@@ -61,6 +62,7 @@ namespace BlackveilDpsMeter
             SceneManager.sceneLoaded += OnSceneLoaded;
 
             Logger.LogInfo("Mod Injected: Hidden Bus & Harmony Patches Active.");
+
         }
         public void ResetMeter()
         {
@@ -131,7 +133,7 @@ namespace BlackveilDpsMeter
     // This class handles the actual rendering and stays alive forever
     public class PersistentUI : MonoBehaviour
     {
-        private Text _uiText;
+        private TextMeshProUGUI _uiText;
         private GameObject _canvasObj;
         private GameObject _panelObj;
         private float nextSyncTime = 0f; // Initialize next sync time
@@ -172,28 +174,44 @@ namespace BlackveilDpsMeter
             GameObject textObj = new GameObject("DPS_Text_Display");
             textObj.transform.SetParent(_panelObj.transform, false);
 
-            _uiText = textObj.AddComponent<Text>();
-            
-            // Set Font: Using Builtin Arial for maximum compatibility
-            _uiText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            _uiText.fontSize = 15;
+            // Use TextMeshProUGUI instead of legacy Text
+            _uiText = textObj.AddComponent<TextMeshProUGUI>();
+
+            // Find the LiberationSans SDF Asset in the game's memory
+            TMP_FontAsset gameFont = null;
+            var fonts = Resources.FindObjectsOfTypeAll<TMP_FontAsset>();
+            foreach (var f in fonts)
+            {
+                if (f.name.Contains("LiberationSans"))
+                {
+                    gameFont = f;
+                    break;
+                }
+            }
+
+            if (gameFont != null)
+            {
+                _uiText.font = gameFont;
+            }
+            else
+            {
+                Debug.LogWarning("[DPS] Could not find LiberationSans SDF, using TMP default.");
+            }
+
+            _uiText.fontSize = 14;
             _uiText.color = Color.yellow;
-            
-            // Alignment: Middle-Right looks best when pinned to the right side
-            _uiText.alignment = TextAnchor.UpperLeft; 
-            _uiText.horizontalOverflow = HorizontalWrapMode.Overflow;
-            _uiText.verticalOverflow = VerticalWrapMode.Overflow;
+            _uiText.alignment = TextAlignmentOptions.TopLeft; // TMP uses different alignment names
+
+            // TMP handles overflow automatically, but we can set specific modes:
+            _uiText.overflowMode = TextOverflowModes.Overflow;
+            _uiText.enableWordWrapping = false;
 
             // Positioning Text within the Panel
-            RectTransform textRect = textObj.GetComponent<RectTransform>();
-            textRect.anchorMin = Vector2.zero; // Stretch to parent panel
+            RectTransform textRect = _uiText.rectTransform;
+            textRect.anchorMin = Vector2.zero;
             textRect.anchorMax = Vector2.one;
-
-            // ADDING PADDING:
-            // Left offset = 15 (Push text 15 pixels away from left edge)
-            // Right offset = 10 (Push numbers slightly in from right edge)
             textRect.offsetMin = new Vector2(15, 0); 
-            textRect.offsetMax = new Vector2(-10, 0);  
+            textRect.offsetMax = new Vector2(-10, 0);
         }
 
         private float _nextDebugTime = 0f;
@@ -236,7 +254,7 @@ namespace BlackveilDpsMeter
                     // Use a small helper function for colors
                     string ColorText(string text, string hex) => $"<color={hex}>{text}</color>";
                     // --- CLIPPED BAR LOGIC ---
-                    int barWidth = 18; // Total character slots
+                    int barWidth = 20; // Total character slots
                     int remainingSlots = barWidth;
                     string visualBar = "";
 
@@ -304,25 +322,29 @@ namespace BlackveilDpsMeter
                 var localChamp = PlayerManager.Instance.LocalChampion;
                 var runner = localChamp.Runner; // Get the NetworkRunner from the champion    
 
-                if (Time.time > nextSyncTime)
-                    {
-                        // 3. Immediately set the next target time (Current time + 2 seconds)
-                        nextSyncTime = Time.time + 2.0f;
+                if (runner != null && runner.IsServer)
+                {
 
-                        foreach (var player in PlayerManager.Instance.GetPlayers())
+                    if (Time.time > nextSyncTime)
                         {
-                            if (player == null || player.Object == null) continue;
+                            // 3. Immediately set the next target time (Current time + 2 seconds)
+                            nextSyncTime = Time.time + 2.0f;
 
-                            Debug.Log($"[DPS] Host sync loop running for {player.UserName}");
-                            
-                            // Trigger the RPC
-                            PlayerManager.Instance.RPC_Handle_SetUserData_All(
-                                player.Object.InputAuthority, 
-                                player.UserName, 
-                                player.ProfileUUID
-                            );
+                            foreach (var player in PlayerManager.Instance.GetPlayers())
+                            {
+                                if (player == null || player.Object == null) continue;
+
+                                Debug.Log($"[DPS] Host sync loop running for {player.UserName}");
+                                
+                                // Trigger the RPC
+                                PlayerManager.Instance.RPC_Handle_SetUserData_All(
+                                    player.Object.InputAuthority, 
+                                    player.UserName, 
+                                    player.ProfileUUID
+                                );
+                            }
                         }
-                    }
+                }
             }
             // Inside your Update loop
             
@@ -395,7 +417,7 @@ namespace BlackveilDpsMeter
         {
         public GameObject Root;
         public Image BarFill;
-        public Text InfoText;
+        public TextMeshProUGUI InfoText;
         }
     private GameObject _leaderboardPanel;
     private Dictionary<int, PlayerBarRefs> _playerBars = new Dictionary<int, PlayerBarRefs>();
@@ -405,6 +427,12 @@ namespace BlackveilDpsMeter
     {
         if (!_isInitialized)
         {
+            var pm = RR.PlayerManager.Instance;
+            if (pm == null || pm.GetPlayers().Count <= 1) 
+            {
+                return; // Stay uninitialized while solo
+            }
+
             GameObject canvasObj = GameObject.Find("DPS_Overlay_Canvas");
             if (canvasObj != null)
             {
@@ -500,58 +528,72 @@ namespace BlackveilDpsMeter
     }
 
     private PlayerBarRefs CreatePlayerBar(int index)
-    {
-        GameObject row = new GameObject("PlayerBar_" + index);
-        row.transform.SetParent(_leaderboardPanel.transform, false);
-        
-        // Set a height for the bar row
-        RectTransform rowRect = row.AddComponent<RectTransform>();
-        rowRect.sizeDelta = new Vector2(0, 25);
+        {
+            GameObject row = new GameObject("PlayerBar_" + index);
+            row.transform.SetParent(_leaderboardPanel.transform, false);
+            
+            RectTransform rowRect = row.AddComponent<RectTransform>();
+            rowRect.sizeDelta = new Vector2(0, 25);
 
-        // 1. Create the Background (The empty part of the bar)
-        Image bg = row.AddComponent<Image>();
-        bg.color = new Color(0, 0, 0, 0.3f); // Subtle dark backdrop for the bar itself
+            // 1. Create the Background
+            Image bg = row.AddComponent<Image>();
+            bg.color = new Color(0, 0, 0, 0.3f);
 
-        // 2. Create the Bar Fill (The colored part)
-        GameObject fillObj = new GameObject("Fill");
-        fillObj.transform.SetParent(row.transform, false);
-        Image fillImg = fillObj.AddComponent<Image>();
-        fillImg.type = Image.Type.Filled;
-        fillImg.fillMethod = Image.FillMethod.Horizontal;
-        fillImg.fillOrigin = (int)Image.OriginHorizontal.Left;
-        
-        // Brighter colors for black text contrast
-        fillImg.color = (index == 0) ? new Color(1f, 0.8f, 0f, 1f) : new Color(0f, 0.75f, 1f, 1f);
+            // 2. Create the Bar Fill
+            GameObject fillObj = new GameObject("Fill");
+            fillObj.transform.SetParent(row.transform, false);
+            Image fillImg = fillObj.AddComponent<Image>();
+            fillImg.type = Image.Type.Filled;
+            fillImg.fillMethod = Image.FillMethod.Horizontal;
+            fillImg.fillOrigin = (int)Image.OriginHorizontal.Left;
+            
+            fillImg.color = (index == 0) ? new Color(1f, 0.8f, 0f, 1f) : new Color(0f, 0.75f, 1f, 1f);
 
-        RectTransform fillRect = fillImg.rectTransform;
-        fillRect.anchorMin = Vector2.zero;
-        fillRect.anchorMax = Vector2.one;
-        fillRect.sizeDelta = Vector2.zero;
+            RectTransform fillRect = fillImg.rectTransform;
+            fillRect.anchorMin = Vector2.zero;
+            fillRect.anchorMax = Vector2.one;
+            fillRect.sizeDelta = Vector2.zero;
 
-        // 3. Create the Text (Now forced to the top)
-        GameObject textObj = new GameObject("Text");
-        textObj.transform.SetParent(row.transform, false);
-        
-        Text t = textObj.AddComponent<Text>();
-        t.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        t.fontSize = 14;
-        t.fontStyle = FontStyle.Bold;
-        t.alignment = TextAnchor.MiddleLeft;
-        t.color = Color.black; 
-        t.horizontalOverflow = HorizontalWrapMode.Overflow;
-        t.verticalOverflow = VerticalWrapMode.Overflow;
+            // 3. Create the Text (TextMeshPro Edition)
+            GameObject textObj = new GameObject("Text");
+            textObj.transform.SetParent(row.transform, false);
+            
+            TextMeshProUGUI t = textObj.AddComponent<TextMeshProUGUI>();
 
-        RectTransform tRect = t.rectTransform;
-        tRect.anchorMin = Vector2.zero;
-        tRect.anchorMax = Vector2.one;
-        tRect.sizeDelta = Vector2.zero;
-        tRect.offsetMin = new Vector2(10, 0); // Padding from left edge
+            // --- FONT ASSIGNMENT ---
+            TMP_FontAsset gameFont = null;
+            var fonts = Resources.FindObjectsOfTypeAll<TMP_FontAsset>();
+            foreach (var f in fonts)
+            {
+                if (f.name.Contains("LiberationSans"))
+                {
+                    gameFont = f;
+                    break;
+                }
+            }
+            
+            if (gameFont != null) t.font = gameFont;
+            // -----------------------
 
-        // CRITICAL: Ensure text is rendered after (on top of) the bar fill
-        textObj.transform.SetAsLastSibling();
+            t.fontSize = 14;
+            t.fontStyle = FontStyles.Bold; // Note the 's' in FontStyles
+            t.alignment = TextAlignmentOptions.Left; // TMP specific alignment
+            t.color = Color.black; 
+            
+            // TMP handles overflow by default, but we can be explicit:
+            t.overflowMode = TextOverflowModes.Overflow;
+            t.enableWordWrapping = false;
 
-        return new PlayerBarRefs { Root = row, BarFill = fillImg, InfoText = t };
-    }
+            RectTransform tRect = t.rectTransform;
+            tRect.anchorMin = Vector2.zero;
+            tRect.anchorMax = Vector2.one;
+            tRect.sizeDelta = Vector2.zero;
+            tRect.offsetMin = new Vector2(10, 0); 
+
+            textObj.transform.SetAsLastSibling();
+
+            return new PlayerBarRefs { Root = row, BarFill = fillImg, InfoText = t };
+        }
     }
 
 

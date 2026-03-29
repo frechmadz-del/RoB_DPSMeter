@@ -16,6 +16,7 @@
           "BepInEx": "5.4.23.5",
           "Fusion.Runtime": "2.0.6.0",
           "Unity.InputSystem": "1.14.0.0",
+          "Unity.TextMeshPro": "0.0.0.0",
           "UnityEngine.CoreModule": "0.0.0.0",
           "UnityEngine": "0.0.0.0",
           "UnityEngine.InputLegacyModule": "0.0.0.0",
@@ -235,6 +236,14 @@
           "Unity.InputSystem.dll": {
             "assemblyVersion": "1.14.0.0",
             "fileVersion": "1.14.0.0"
+          }
+        }
+      },
+      "Unity.TextMeshPro/0.0.0.0": {
+        "runtime": {
+          "Unity.TextMeshPro.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
           }
         }
       },
@@ -782,14 +791,6 @@
           }
         }
       },
-      "Unity.TextMeshPro/0.0.0.0": {
-        "runtime": {
-          "Unity.TextMeshPro.dll": {
-            "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.0.0.0"
-          }
-        }
-      },
       "Cinemachine/0.0.0.0": {
         "runtime": {
           "Cinemachine.dll": {
@@ -1147,6 +1148,11 @@
       "serviceable": false,
       "sha512": ""
     },
+    "Unity.TextMeshPro/0.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
     "UnityEngine.CoreModule/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
@@ -1483,11 +1489,6 @@
       "sha512": ""
     },
     "Unity.AI.Navigation/0.0.0.0": {
-      "type": "reference",
-      "serviceable": false,
-      "sha512": ""
-    },
-    "Unity.TextMeshPro/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
