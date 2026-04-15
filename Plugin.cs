@@ -3,6 +3,7 @@ using HarmonyLib;
 using UnityEngine;
 using UnityEngine.UI;
 using System.Collections;
+using RR.Game;
 using RR.Game.Stats;
 using RR.Game.Damage;
 using RR.Game.Perk;
@@ -37,14 +38,26 @@ namespace BlackveilDpsMeter
         public float TotalFrost = 0f;
         public float TotalCurse = 0f;
         public float TotalBless = 0f;
+        public float TotalFury = 0f;
         public float ActiveCombatTime = 0f; // New: Tracks accumulated combat seconds
         public float StartTime = -1f;
         public float LastHitTime = -1f; // out of fight timer
+        public bool IsCurrentHitValid = false;
         public static bool IsSyncingDps = false;
+        private static bool _instanceExists = false;
+        
 
         void Awake()
         {
             Instance = this;
+
+            if (_instanceExists)
+            {
+                Destroy(this.gameObject);
+                return;
+            }
+
+            _instanceExists = true;
             
             // 1. Force Harmony to patch the game's own Update loop as a heartbeat
             var harmony = new Harmony("com.gemini.dpsmeter");
@@ -56,6 +69,7 @@ namespace BlackveilDpsMeter
             Object.DontDestroyOnLoad(tracker);
             tracker.AddComponent<PersistentUI>();
             tracker.AddComponent<LeaderboardUI>();
+            tracker.AddComponent<SummonController>();
 
 
             // Subscribe to Unity's sceneLoaded event
@@ -75,7 +89,26 @@ namespace BlackveilDpsMeter
             Plugin.Instance.TotalFrost = 0f;
             Plugin.Instance.TotalCurse = 0f;
             Plugin.Instance.TotalMinion = 0f;
+            Plugin.Instance.TotalBless = 0f;
+            Plugin.Instance.TotalFury = 0f;
             Plugin.Instance.ActiveCombatTime = 0.11f;
+
+            foreach (var player in RemotePlayers.Values)
+            {
+                player.TotalDamage = 0f;
+                player.TotalBurn = 0f;
+                player.TotalRoot = 0f;
+                player.TotalPoison = 0f;
+                player.TotalBleed = 0f;
+                player.TotalShock = 0f;
+                player.TotalFrost = 0f;
+                player.TotalCurse = 0f;
+                player.TotalMinion = 0f;
+                player.TotalBless = 0f;
+                player.TotalFury = 0f;
+            }
+
+            Plugin.Instance.RepopulateFromRemote(); // Ensure the UI reflects the reset immediately
             
         }
         // This method is called every time a new scene is loaded and resets the DPSmeter
@@ -100,6 +133,8 @@ namespace BlackveilDpsMeter
             public float TotalFrost;
             public float TotalCurse;
             public float TotalMinion;
+            public float TotalBless;
+            public float TotalFury;
         }
 
 // This is the variable the compiler was looking for
@@ -123,11 +158,45 @@ namespace BlackveilDpsMeter
             float.TryParse(values[3], out stats.TotalPoison);
             float.TryParse(values[4], out stats.TotalBleed);
             float.TryParse(values[5], out stats.TotalShock);
-            float.TryParse(values[6], out stats.TotalCurse);
-            float.TryParse(values[7], out stats.TotalFrost);
+            float.TryParse(values[6], out stats.TotalFrost);
+            float.TryParse(values[7], out stats.TotalCurse);
             float.TryParse(values[8], out stats.TotalMinion);
+            float.TryParse(values[9], out stats.TotalBless);
+            float.TryParse(values[10], out stats.TotalFury);
+
 
         }
+
+        public void RepopulateFromRemote()
+            {
+                // 1. Find your entry in the dictionary by name
+                var manager = GameObject.FindObjectOfType<PlayerManager>();
+                if (manager == null || manager.LocalPlayer == null) return;
+                string myName = manager.LocalPlayer.UserName;
+                var myData = Plugin.Instance.RemotePlayers.Values.FirstOrDefault(p => p.Name == myName);
+
+                if (myData != null)
+                {
+                    // Ensure the main total stays in sync too
+                    Plugin.Instance.TotalDamage = myData.TotalDamage;
+                    // 2. Directly copy the totals back into the main Plugin instance
+                    Plugin.Instance.TotalBurn = myData.TotalBurn;
+                    Plugin.Instance.TotalPoison = myData.TotalPoison;
+                    Plugin.Instance.TotalBleed = myData.TotalBleed;
+                    Plugin.Instance.TotalShock = myData.TotalShock;
+                    Plugin.Instance.TotalRoot = myData.TotalRoot;
+                    Plugin.Instance.TotalFrost = myData.TotalFrost;
+                    Plugin.Instance.TotalCurse = myData.TotalCurse;
+                    Plugin.Instance.TotalMinion = myData.TotalMinion;
+                    Plugin.Instance.TotalBless = myData.TotalBless;
+                    Plugin.Instance.TotalFury = myData.TotalFury;
+
+                }
+                else
+                {
+                    Debug.LogWarning($"[DPS] No matching entry found in RemotePlayers for {myName}");
+                }
+            }
     }
 
     // This class handles the actual rendering and stays alive forever
@@ -138,6 +207,9 @@ namespace BlackveilDpsMeter
         private GameObject _panelObj;
         private float nextSyncTime = 0f; // Initialize next sync time
         private float dpsupdateTime = 0f;
+        private Canvas _targetCanvas;
+        private bool _isVisible = true;
+        private bool _isKeyHeld = false; // Our custom debounce
 
         void Start()
         {
@@ -151,31 +223,57 @@ namespace BlackveilDpsMeter
 
             // Essential for Unity 2022.3 UI Modules
             _canvasObj.AddComponent<GraphicRaycaster>();
-
-            // 2. Create the Background PANEL (Opaque)
-            _panelObj = new GameObject("DPS_Background_Panel");
+            // 2. Create the Background PANEL (The Border/Frame)
+            _panelObj = new GameObject("DPS_Background_Frame");
             _panelObj.transform.SetParent(_canvasObj.transform, false);
 
-            Image panelImage = _panelObj.AddComponent<Image>();
-            
-            // Set Color: Black (0,0,0) with 80% Opacity (0.8f Alpha)
-            // If you want it 100% opaque, set alpha to 1.0f.
-            panelImage.color = new Color(0f, 0f, 0f, 0.8f); 
+            Image frameImage = _panelObj.AddComponent<Image>();
+            // A "Bronze/Gold" color to match the image metal
+            frameImage.color = new Color(0.45f, 0.35f, 0.2f, 1f); 
 
-            // Anchoring and Scaling the Panel (Right-Center)
-            RectTransform panelRect = panelImage.GetComponent<RectTransform>();
-            panelRect.anchorMin = new Vector2(1, 0.5f); // Right side, Middle height
+            RectTransform panelRect = frameImage.GetComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(1, 0.5f);
             panelRect.anchorMax = new Vector2(1, 0.5f);
             panelRect.pivot = new Vector2(1, 0.5f);
-            panelRect.anchoredPosition = new Vector2(-10, 0); // 10 pixels in from the edge
-            panelRect.sizeDelta = new Vector2(220, 170); // FIXED SIZE (Width, Height)
+            panelRect.anchoredPosition = new Vector2(-10, 0);
+            panelRect.sizeDelta = new Vector2(220, 210);
 
-            // 3. Create the TEXT Display (As child of the panel)
+            // Add an Outline component to give it the "raised" metal edge look
+            var outline = _panelObj.AddComponent<UnityEngine.UI.Outline>();
+            outline.effectColor = new Color(0.15f, 0.1f, 0.05f, 1f); // Darker shadow
+            outline.effectDistance = new Vector2(2, -2);
+
+            // 2b. Create the Inner Background (The Teal/Green area)
+            GameObject innerArea = new GameObject("Inner_Area");
+            innerArea.transform.SetParent(_panelObj.transform, false);
+
+            Image innerImage = innerArea.AddComponent<Image>();
+            // Dark Teal/Green color from your image
+            innerImage.color = new Color(0f, 0f, 0f, 0.95f); 
+
+            RectTransform innerRect = innerImage.rectTransform;
+            innerRect.anchorMin = Vector2.zero;
+            innerRect.anchorMax = Vector2.one;
+            // Padding of 5 pixels creates the "Border" thickness
+            innerRect.offsetMin = new Vector2(5, 5);
+            innerRect.offsetMax = new Vector2(-5, -5);
+
+            // 3. Create the TEXT Display (As child of the inner area)
             GameObject textObj = new GameObject("DPS_Text_Display");
-            textObj.transform.SetParent(_panelObj.transform, false);
+            textObj.transform.SetParent(innerArea.transform, false);
 
-            // Use TextMeshProUGUI instead of legacy Text
             _uiText = textObj.AddComponent<TextMeshProUGUI>();
+            _uiText.fontSize = 16;
+            _uiText.color = Color.white;
+            _uiText.alignment = TextAlignmentOptions.Center;
+
+            // Ensure text stays inside the border
+            RectTransform textRect = _uiText.rectTransform;
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.sizeDelta = Vector2.zero; // Stretch to fit inside padding
+            textRect.offsetMin = new Vector2(5, 5); 
+            textRect.offsetMax = new Vector2(-5, -5);
 
             // Find the LiberationSans SDF Asset in the game's memory
             TMP_FontAsset gameFont = null;
@@ -206,18 +304,13 @@ namespace BlackveilDpsMeter
             _uiText.overflowMode = TextOverflowModes.Overflow;
             _uiText.enableWordWrapping = false;
 
-            // Positioning Text within the Panel
-            RectTransform textRect = _uiText.rectTransform;
-            textRect.anchorMin = Vector2.zero;
-            textRect.anchorMax = Vector2.one;
-            textRect.offsetMin = new Vector2(15, 0); 
-            textRect.offsetMax = new Vector2(-10, 0);
+            _targetCanvas = _canvasObj.GetComponent<Canvas>();
         }
+        
 
         private float _nextDebugTime = 0f;
         void Update()
         {
-
             if (Time.time >= _nextDebugTime)
             {
                 _nextDebugTime = Time.time + 2.0f;
@@ -240,7 +333,7 @@ namespace BlackveilDpsMeter
                 
                 dpsupdateTime = Time.time + 0.5f; // Update every 0.5 seconds (adjust as needed)
                 // 1. Sync the data from the dictionary back to the Plugin totals
-                RepopulateFromRemote();
+                Plugin.Instance.RepopulateFromRemote();
 
                 float displayTime = Mathf.Max(0.1f, Plugin.Instance.ActiveCombatTime);
 
@@ -283,6 +376,8 @@ namespace BlackveilDpsMeter
                     AddClippedSegment(Plugin.Instance.TotalFrost, "#00FFFF");
                     AddClippedSegment(Plugin.Instance.TotalCurse, "#019262");
                     AddClippedSegment(Plugin.Instance.TotalMinion, "#ff00f2");
+                    AddClippedSegment(Plugin.Instance.TotalBless, "#78a70a");
+                    AddClippedSegment(Plugin.Instance.TotalFury, "#c22f02");
 
                     // FILLER: If damage types don't sum to 100% (Raw damage), or rounding left a gap
                     if (remainingSlots > 0) {
@@ -301,7 +396,9 @@ namespace BlackveilDpsMeter
                         ColorText(FormatLine("ROOT", Plugin.Instance.TotalRoot), "#805700"),
                         ColorText(FormatLine("FROST", Plugin.Instance.TotalFrost), "#00FFFF"),
                         ColorText(FormatLine("CURSE", Plugin.Instance.TotalCurse), "#019262"),
-                        ColorText(FormatLine("MINION", Plugin.Instance.TotalMinion), "#ff00f2")
+                        ColorText(FormatLine("MINION", Plugin.Instance.TotalMinion), "#ff00f2"),
+                        ColorText(FormatLine("BLESS", Plugin.Instance.TotalBless), "#78a70a"),
+                        ColorText(FormatLine("FURY", Plugin.Instance.TotalFury), "#c22f02")
                     );
                 }
                 else
@@ -311,10 +408,23 @@ namespace BlackveilDpsMeter
                     // We don't recalculate DPS here, so it stays frozen at the last value
                 }
             }
+            var keyboard = UnityEngine.InputSystem.Keyboard.current;
+            bool ui_pressed = keyboard.pKey.isPressed;
 
-            if (UnityEngine.InputSystem.Keyboard.current.f10Key.wasPressedThisFrame)
+            if (keyboard.oKey.isPressed)
             {
                 Plugin.Instance.ResetMeter();
+            }
+            // Check for F11 key press
+            if (ui_pressed && !_isKeyHeld)
+            {   
+                Debug.Log("[DPS] F11 Pressed: Toggling UI Visibility");
+                _isKeyHeld = true;
+                ToggleUIVisibility();
+            }
+            else if (!ui_pressed)
+            {
+                _isKeyHeld = false; // Unlock when user lets go of F11
             }
             // Sync with lobby (for host and clients)
             if (PlayerManager.Instance != null && PlayerManager.Instance.LocalChampion != null)
@@ -349,66 +459,46 @@ namespace BlackveilDpsMeter
             // Inside your Update loop
             
         }
-        public void RepopulateFromRemote()
-            {
-                // 1. Find your entry in the dictionary by name
-                var manager = GameObject.FindObjectOfType<PlayerManager>();
-                if (manager == null || manager.LocalPlayer == null) return;
-                string myName = manager.LocalPlayer.UserName;
-                var myData = Plugin.Instance.RemotePlayers.Values.FirstOrDefault(p => p.Name == myName);
-
-                if (myData != null)
-                {
-                    // 2. Directly copy the totals back into the main Plugin instance
-                    Plugin.Instance.TotalBurn = myData.TotalBurn;
-                    Plugin.Instance.TotalPoison = myData.TotalPoison;
-                    Plugin.Instance.TotalBleed = myData.TotalBleed;
-                    Plugin.Instance.TotalShock = myData.TotalShock;
-                    Plugin.Instance.TotalRoot = myData.TotalRoot;
-                    Plugin.Instance.TotalFrost = myData.TotalFrost;
-                    Plugin.Instance.TotalCurse = myData.TotalCurse;
-                    Plugin.Instance.TotalMinion = myData.TotalMinion;
-
-                    // Ensure the main total stays in sync too
-                    Plugin.Instance.TotalDamage = myData.TotalDamage;
-                }
-                else
-                {
-                    Debug.LogWarning($"[DPS] No matching entry found in RemotePlayers for {myName}");
-                }
-            }
-        private void PrintActivePlayersDebug()
-{
-    var pm = RR.PlayerManager.Instance;
-    if (pm == null)
-    {
-        Debug.Log("[DPS Debug] PlayerManager.Instance is NULL");
-        return;
-    }
-
-    var players = pm.GetPlayers();
-    Debug.Log($"--- [DPS Debug] Active Players Count: {players.Count} ---");
-
-    for (int i = 0; i < players.Count; i++)
-    {
-        var p = players[i];
-        if (p == null)
+        private void ToggleUIVisibility()
         {
-            Debug.Log($"  [{i}] PLAYER OBJECT IS NULL");
-            continue;
+            _isVisible = !_isVisible;
+            _targetCanvas.enabled = _isVisible;
+            
+            // Physical feedback in the editor console
+            Debug.Log($"[UI] Visibility set to: {_isVisible}");
         }
+        private void PrintActivePlayersDebug()
+        {
+            var pm = RR.PlayerManager.Instance;
+            if (pm == null)
+            {
+                Debug.Log("[DPS Debug] PlayerManager.Instance is NULL");
+                return;
+            }
 
-        // We check several ID types to ensure we find the one 
-        // that matches your 'attackerID' in the patch.
-        string name = string.IsNullOrEmpty(p.UserName) ? "EMPTY_NAME" : p.UserName;
-        int fusionID = p.FusionPlayerRef.PlayerId;
-        int playerID = p.PlayerId; // Internal RR ID
-        bool isLocal = (pm.LocalPlayer == p);
+            var players = pm.GetPlayers();
+            Debug.Log($"--- [DPS Debug] Active Players Count: {players.Count} ---");
 
-        Debug.Log($"  [{i}] Name: {name} | FusionID: {fusionID} | PlayerID: {playerID} | Local: {isLocal}");
-    }
-    Debug.Log("------------------------------------------");
-}
+            for (int i = 0; i < players.Count; i++)
+            {
+                var p = players[i];
+                if (p == null)
+                {
+                    Debug.Log($"  [{i}] PLAYER OBJECT IS NULL");
+                    continue;
+                }
+
+                // We check several ID types to ensure we find the one 
+                // that matches your 'attackerID' in the patch.
+                string name = string.IsNullOrEmpty(p.UserName) ? "EMPTY_NAME" : p.UserName;
+                int fusionID = p.FusionPlayerRef.PlayerId;
+                int playerID = p.PlayerId; // Internal RR ID
+                bool isLocal = (pm.LocalPlayer == p);
+
+                Debug.Log($"  [{i}] Name: {name} | FusionID: {fusionID} | PlayerID: {playerID} | Local: {isLocal}");
+            }
+            Debug.Log("------------------------------------------");
+        }
     }
 
     public class LeaderboardUI : MonoBehaviour
@@ -597,7 +687,6 @@ namespace BlackveilDpsMeter
     }
 
 
-    // patch to fetch dmgh remote
 [HarmonyPatch(typeof(RR.Game.Stats.Health), "AddDamageData")]
 public static class DamageDataPatch
 {
@@ -609,6 +698,7 @@ public static class DamageDataPatch
         // 2. Uniform logic: If there is an attacker, update their stats in the dictionary
         // This handles YOU and Remote players identically based on their unique ID
         Debug.Log($"[DPS Meter] Damage Detected: {damageValue} of type {typeStr} from AttackerID {attackerID}");
+        Debug.Log($"[DPS Meter] Playercount: {Plugin.Instance.RemotePlayers.Count}");
         if (attackerID >= 0 && attackerID < Plugin.Instance.RemotePlayers.Count)
         {
             UpdatePlayerStats(attackerID, damageValue, typeStr);
@@ -662,11 +752,11 @@ private static void UpdatePlayerStats(int id, float val, string type)
         else if (type.Contains("Freeze") || type.Contains("Chill") || type.Contains("Frost")) stats.TotalFrost += val;
     }
 }
-
-    [HarmonyPatch(typeof(Attack), "ModifyDamageWithModifierAndCritical")]
-    public class MinionDamageHook
+    // this is to catch starting time for remote player and minion damage since it doesn't go through the normal damage pipeline
+           [HarmonyPatch(typeof(Attack), "ModifyDamageWithModifierAndCritical")]
+    public class RemoteDamageHook
     {
-        static void Postfix(object __instance, StatsManager victim, ref DamageDescriptor damageDesc, bool onlyForUI)
+        static void Postfix(object __instance, StatsManager victim, ref DamageDescriptor damageDesc, UserAction userAction, bool onlyForUI)
         {
             //MZa turned off to check if this enables dps tracker on remote player
             //if (onlyForUI) return;
@@ -674,23 +764,79 @@ private static void UpdatePlayerStats(int id, float val, string type)
             // Since the method is in the 'Attack' class, '__instance' refers to the Attack object.
             // We need to find the stats associated with this attack.
             // Based on your original code, it looks like 'Attack' has a private field called '_stats'.
-
-            if (damageDesc.damageValue != 0 && onlyForUI)
-            {   
+            if (damageDesc.damageValue != 0) 
+            {
                 var stats = Traverse.Create(__instance).Field("_stats").GetValue<StatsManager>();
-                float finalDmg = damageDesc.damageValue;
-                Debug.Log($"[DPS Meter] Attacker {stats.name} dealt {finalDmg} damage to {victim?.name}");
-                if (Plugin.Instance.StartTime < 0) Plugin.Instance.StartTime = Time.time;
-                Plugin.Instance.LastHitTime = Time.time;
-                // Traverse can pull all field names and values into a dictionary
-                var fields = Traverse.Create(stats).Fields();
-                
-                Debug.Log($"--- Inspecting StatsManager ({fields.Count} fields found) ---");
-                foreach (var fieldName in fields)
-                {
-                    var val = Traverse.Create(stats).Field(fieldName).GetValue();
-                    Debug.Log($"Field: {fieldName} | Value: {val}");
+                float damageValue = damageDesc.damageValue;
+
+                if (onlyForUI)
+                {   
+                    Debug.Log($"[DPS Meter] Attacker {stats.name} dealt {damageValue} damage to {victim?.name}");
+                    if (Plugin.Instance.StartTime < 0) Plugin.Instance.StartTime = Time.time;
+                    Plugin.Instance.LastHitTime = Time.time;
+                    // Traverse can pull all field names and values into a dictionary
+                    var fields = Traverse.Create(stats).Fields();
+                    
+                    Debug.Log($"--- Inspecting StatsManager ({fields.Count} fields found) ---");
+                    foreach (var fieldName in fields)
+                    {
+                        var val = Traverse.Create(stats).Field(fieldName).GetValue();
+                        Debug.Log($"Field: {fieldName} | Value: {val}");
+                    }
                 }
+                else if (stats.IsChampionMinion && !onlyForUI)
+                {
+                    // 2. Use our Hooked SpawnerActorID
+                    int ownerActorID = stats.SpawnerActorID;
+
+                    if (ownerActorID != -1) // -1 is InvalidActorID
+                    {
+                        // 3. Find the Owner's StatsManager via the ActorID
+                        // We look for the Player object that matches the SpawnerActorID
+                        int lookupId = (ownerActorID == 0) ? 1 : ownerActorID + 1;
+
+                        if (Plugin.Instance.RemotePlayers.TryGetValue(lookupId, out var playerStatsstats))
+                        {
+                                    // Success! We've distilled the damage
+                                    playerStatsstats.TotalMinion += damageValue;
+                                    Debug.Log($"[DPS] Distilled {damageValue} Minion Damage from Actor {stats.ActorID} (credited to Owner {ownerActorID})");
+    
+                        }
+                    }
+                }
+                else if (stats.IsChampion && !onlyForUI)
+                {
+                    // here loop up BLESSED and FURY DMG, so we can credit it to the attacker
+                    int attackerActorID = stats.ActorID;
+                    int lookupId = (attackerActorID == 0) ? 1 : attackerActorID + 1;
+
+                    if (Plugin.Instance.RemotePlayers.TryGetValue(lookupId, out var playerStats))
+                    {
+                        switch (userAction)
+                        {
+                            case UserAction.Attack:
+                            {
+                                if (damageDesc.blessedAttack)
+                                {
+                                    float multiplier = 1f + (stats.Bless.EmpoweredAttackDamageIncrementPCT / 100f);
+                                    float originalDamage = damageValue / multiplier;
+                                    playerStats.TotalBless += damageValue - originalDamage;
+                                    Debug.Log($"[DPS] Credited {stats.Bless.EmpoweredAttackDamageIncrementPCT}% Blessed Damage");
+
+                                }
+                                if (damageDesc.furyAttack)
+                                {   
+                                    float multiplier = 1f + (stats.Fury.BoostedAttackDamageIncPCT.Value / 100f);
+                                    float originalDamage = damageValue / multiplier;
+                                    playerStats.TotalFury += damageValue - originalDamage;
+                                }
+                            }
+                            break;
+                        }
+                        
+                    }
+                }
+
             }
         }
     }
@@ -701,6 +847,7 @@ private static void UpdatePlayerStats(int id, float val, string type)
         [HarmonyPostfix]
         static void Postfix(StatsManager __instance, StatsManager victim, ref DamageDescriptor dmgDesc, bool calcForUI)
         {
+           
             if (calcForUI || victim == null || __instance == null) return;
 
             // 1. Get the ActorID from the Attacker (__instance)
@@ -740,6 +887,7 @@ private static void UpdatePlayerStats(int id, float val, string type)
                         else
                         {
                             // Fallback: If stats don't exist yet, create them or log the miss
+           
                             Debug.LogWarning($"[DPS Meter] Received Frozen Damage for Actor {attackerActorID}, but no RemotePlayer found at Key {lookupId}");
                         }
                     }
@@ -747,58 +895,7 @@ private static void UpdatePlayerStats(int id, float val, string type)
             }
         }
     }
-public static class DamageIdentityBridge
-{
-    // This "remembers" the minion ID for the duration of one hit
-    public static int ActiveMinionActorID = -1;
 
-    [HarmonyPatch(typeof(RR.Game.Stats.Health), "TakeBasicDamage")]
-    public static class TakeBasicDamagePatch
-    {
-        static void Prefix(StatsManager attacker)
-        {
-            // If the attacker is a minion (ID > 10 usually), remember its ID
-            if (attacker != null && attacker.ActorID > 10)
-            {
-                ActiveMinionActorID = attacker.ActorID;
-            }
-            else
-            {
-                ActiveMinionActorID = -1;
-            }
-        }
-
-        static void Postfix()
-        {
-            // Clear it after the hit is fully processed to avoid misattribution
-            ActiveMinionActorID = -1;
-        }
-    }
-
-    [HarmonyPatch(typeof(RR.Game.Stats.Health), "AddDamageData")]
-    public static class AddDamageDataPatch
-    {
-        static void Prefix(float damageValue, int attackerID)
-        {
-            // If the game says the attacker is ID 0 (Owner/You),
-            // but our Bridge remembers a Minion ID (like 14)...
-            bool isMinionHit = (ActiveMinionActorID != -1);
-
-            // Apply your standard FusionID offset
-            int lookupId = (attackerID == 0) ? 1 : attackerID + 1;
-
-            if (Plugin.Instance.RemotePlayers.TryGetValue(lookupId, out var stats))
-            {
-                if (isMinionHit)
-                {
-                    // Success! We've distilled the damage
-                    stats.TotalMinion += damageValue;
-                    Debug.Log($"[DPS] Distilled {damageValue} Minion Damage from Actor {ActiveMinionActorID} (credited to Owner {attackerID})");
-                }
-            }
-        }
-    }
-}
     // sending to DPS to lobby
     /// <summary>
     /// 
@@ -832,7 +929,9 @@ public static class DamageIdentityBridge
                         TotalShock = Plugin.Instance.TotalShock,
                         TotalFrost = Plugin.Instance.TotalFrost,
                         TotalCurse = Plugin.Instance.TotalCurse,
-                        TotalMinion = Plugin.Instance.TotalMinion
+                        TotalMinion = Plugin.Instance.TotalMinion,
+                        TotalBless = Plugin.Instance.TotalBless,
+                        TotalFury = Plugin.Instance.TotalFury
                     };
                 }
                 else if (Plugin.Instance.RemotePlayers.TryGetValue(playerRef.PlayerId, out var remoteStats))
@@ -847,7 +946,7 @@ public static class DamageIdentityBridge
                         (int)statsToSync.TotalRoot, (int)statsToSync.TotalPoison,
                         (int)statsToSync.TotalBleed, (int)statsToSync.TotalShock,
                         (int)statsToSync.TotalFrost, (int)statsToSync.TotalCurse, 
-                        (int)statsToSync.TotalMinion);
+                        (int)statsToSync.TotalMinion, (int)statsToSync.TotalBless, (int)statsToSync.TotalFury);
 
                     userName = $"{userName}{Separator}{dataPacket}";
                      Debug.Log($"[DPS] Host Sending {userName}");
@@ -895,6 +994,48 @@ public static class DamageIdentityBridge
                 return false; 
             }
             return true;
+        }
+    }
+
+    // Allocate minons correctly to the summoner
+    public class SummonController : MonoBehaviour 
+    {
+        private void Awake() 
+        {
+            Debug.Log("Persistent Summon Hook Controller Active.");
+        }
+    }
+    public static class SummonValidationPatches
+    {
+        private const int INVALID_ID = -1;
+
+        [HarmonyPrefix]
+        [HarmonyPatch(typeof(StatsManager), "SpawnerActorID", MethodType.Setter)]
+        public static bool Prefix_SetSpawnerID(StatsManager __instance, int value)
+        {
+            if (value == INVALID_ID)
+            {
+                return false;
+            }
+            return true;
+        }
+
+        [HarmonyPrefix]
+        [HarmonyPatch(typeof(Summon), "InitMinionSpawned")]
+        public static void Prefix_InitMinionSpawned(Summon __instance, NetworkObject obj)
+        {
+            // Access private _stats via Traverse
+            var summonerStats = Traverse.Create(__instance).Field<StatsManager>("_stats").Value;
+
+            if (summonerStats != null && obj.TryGetComponent<StatsManager>(out var minionStats))
+            {
+                int ownerID = summonerStats.ActorID;
+                
+                if (ownerID != INVALID_ID)
+                {
+                    minionStats.SpawnerActorID = ownerID;
+                }
+            }
         }
     }
 }
