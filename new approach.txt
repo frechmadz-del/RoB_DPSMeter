@@ -1,0 +1,125 @@
+using System;
+using System.Reflection;
+using Fusion;
+using HarmonyLib;
+using RR.Game.Stats;
+
+namespace WildguardModFramework.Debug {
+    internal static class HealthDamageLogPatch {
+        internal static void Apply(Harmony harmony) {
+            if (!HealthDamageLogController.Initialize()) { return; }
+
+            var render = AccessTools.Method(typeof(Health), "Render");
+            if (render == null) {
+                WmfMod.PublicLogger.LogWarning("WMF/DmgLog: Health.Render not found — damage logging inactive.");
+                return;
+            }
+            harmony.Patch(render,
+                prefix: new HarmonyMethod(typeof(HealthDamageLogPatch), nameof(RenderPrefix)),
+                postfix: new HarmonyMethod(typeof(HealthDamageLogPatch), nameof(RenderPostfix)));
+            WmfMod.PublicLogger.LogInfo("WMF/DmgLog: Health.Render patched.");
+        }
+
+        private static void RenderPrefix(Health __instance, out int __state) =>
+            HealthDamageLogController.CaptureState(__instance, out __state);
+
+        private static void RenderPostfix(Health __instance, int __state) =>
+            HealthDamageLogController.ProcessNewEntries(__instance, __state);
+    }
+
+    internal static class HealthDamageLogController {
+        private static FieldInfo _lastVisualizedField;
+        private static PropertyInfo _arrayProp;
+        private static MethodInfo _arrayGetMethod;
+        private static FieldInfo _valueField;
+        private static FieldInfo _attackerIdField;
+        private static FieldInfo _damageTypeField;
+        private static FieldInfo _criticalField;
+        private static FieldInfo _criticalInnerField;
+
+        internal static bool Initialize() {
+            _lastVisualizedField = AccessTools.Field(typeof(Health), "_lastVisualizedDamageData");
+            if (_lastVisualizedField == null) {
+                WmfMod.PublicLogger.LogWarning("WMF/DmgLog: Health._lastVisualizedDamageData not found — inactive.");
+                return false;
+            }
+
+            var nddType = typeof(Health).GetNestedType("NetworkedDamageData", BindingFlags.NonPublic);
+            if (nddType == null) {
+                WmfMod.PublicLogger.LogWarning("WMF/DmgLog: Health.NetworkedDamageData not found — inactive.");
+                return false;
+            }
+
+            _arrayProp = AccessTools.Property(typeof(Health), "ReceivedDamageDataArray");
+            if (_arrayProp == null) {
+                WmfMod.PublicLogger.LogWarning("WMF/DmgLog: Health.ReceivedDamageDataArray not found — inactive.");
+                return false;
+            }
+
+            var arrayType = typeof(NetworkArray<>).MakeGenericType(nddType);
+            _arrayGetMethod = arrayType.GetMethod("Get") ?? arrayType.GetProperty("Item")?.GetMethod;
+            if (_arrayGetMethod == null) {
+                WmfMod.PublicLogger.LogWarning("WMF/DmgLog: NetworkArray<T>.Get/Item not found — inactive.");
+                return false;
+            }
+
+            _valueField = nddType.GetField("value");
+            _attackerIdField = nddType.GetField("attackerID");
+            _damageTypeField = nddType.GetField("damageStatusType");
+            _criticalField = nddType.GetField("critical");
+
+            if (_criticalField != null) {
+                var nbType = _criticalField.FieldType;
+                _criticalInnerField =
+                    nbType.GetField("_isSet", BindingFlags.NonPublic | BindingFlags.Instance) ??
+                    nbType.GetField("_value", BindingFlags.NonPublic | BindingFlags.Instance) ??
+                    nbType.GetField("value", BindingFlags.NonPublic | BindingFlags.Instance);
+            }
+
+            return true;
+        }
+
+        internal static void CaptureState(Health instance, out int state) {
+            state = (int)_lastVisualizedField.GetValue(instance);
+        }
+
+        internal static void ProcessNewEntries(Health instance, int oldCounter) {
+            try {
+                int newCounter = (int)_lastVisualizedField.GetValue(instance);
+                if (newCounter <= oldCounter) { return; }
+
+                object array = _arrayProp.GetValue(instance);
+                for (int i = oldCounter; i < newCounter; i++) {
+                    object entry = _arrayGetMethod.Invoke(array, new object[] { i % 64 });
+                    if (entry == null) { continue; }
+
+                    float val = (float)(_valueField?.GetValue(entry) ?? 0f);
+                    if (val == 0f) { continue; } // skip dodges
+
+                    int attackerId = (int)(_attackerIdField?.GetValue(entry) ?? -1);
+                    object statusType = _damageTypeField?.GetValue(entry);
+                    bool crit = ReadCritical(entry);
+
+                    WmfMod.PublicLogger.LogInfo(
+                        $"WMF/DmgLog [{instance.name}] val={val:F1} type={statusType} crit={crit} attackerId={attackerId}");
+                }
+            }
+            catch (Exception ex) {
+                WmfMod.PublicLogger.LogWarning($"WMF/DmgLog: error — {ex.Message}");
+            }
+        }
+
+        private static bool ReadCritical(object entry) {
+            if (_criticalField == null || _criticalInnerField == null) { return false; }
+            try {
+                object nb = _criticalField.GetValue(entry);
+                if (nb == null) { return false; }
+                var raw = _criticalInnerField.GetValue(nb);
+                return raw is byte b ? b != 0 : raw is int v ? v != 0 : false;
+            }
+            catch { return false; }
+        }
+    }
+}
+message.txt
+6 kB

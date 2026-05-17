@@ -20,6 +20,7 @@ using RR;
 using Fusion;
 using System.Linq;
 using TMPro;
+using System.Reflection.Emit;
 
 namespace BlackveilDpsMeter
 {
@@ -687,21 +688,50 @@ namespace BlackveilDpsMeter
     }
 
 
-[HarmonyPatch(typeof(RR.Game.Stats.Health), "AddDamageData")]
-public static class DamageDataPatch
+[HarmonyPatch(typeof(Health), "Render")] // Ensure 'Health' matches the class name from your snippet
+public static class RenderDamagePatch
 {
-    static void Prefix(float damageValue, object damageType, int attackerID)
+    static void Postfix(Health __instance)
     {
-        // 1. Get a safe string for the damage type
-        string typeStr = damageType?.ToString() ?? "";
+        // We use the same logic the original code uses to iterate through new damage events
+        // Note: We are 'peeking' at the data before or as the original method increments the counter
+        
+        // Access private fields using AccessTools if necessary, 
+        // but Harmony can often inject them as parameters with double underscores
+    }
 
-        // 2. Uniform logic: If there is an attacker, update their stats in the dictionary
-        // This handles YOU and Remote players identically based on their unique ID
-        Debug.Log($"[DPS Meter] Damage Detected: {damageValue} of type {typeStr} from AttackerID {attackerID}");
-        Debug.Log($"[DPS Meter] Playercount: {Plugin.Instance.RemotePlayers.Count}");
-        if (attackerID >= 0 && attackerID < Plugin.Instance.RemotePlayers.Count)
+    // Alternative: Transpiler is cleaner for high-frequency methods, 
+    // but a Postfix accessing the internal state is easier to maintain:
+    
+    [HarmonyPostfix]
+    public static void Postfix(
+        ref int ____lastVisualizedDamageData, 
+        int ___NetworkedReceivedDamageDataCounter, 
+        NetworkedDamageData[] ___ReceivedDamageDataArray)
+    {
+        // This logic mimics the while loop in the original Render()
+        // but only for the entries that haven't been processed yet.
+        int tempIdx = ____lastVisualizedDamageData;
+
+        while (tempIdx < ___NetworkedReceivedDamageDataCounter)
         {
-            UpdatePlayerStats(attackerID, damageValue, typeStr);
+            int index = tempIdx % 64;
+            var data = ___ReceivedDamageDataArray[index];
+
+            float damageValue = data.value;
+            int attackerID = data.attackerID;
+            string typeStr = data.damageStatusType.ToString();
+
+            // Filter for actual damage (ignore dodges/heals if desired)
+            if (damageValue > 0f)
+            {
+                Debug.Log($"[DPS Meter] Render Hook: {damageValue} dmg from ID {attackerID} (Type: {typeStr})");
+                
+                // Call your existing update logic
+                UpdatePlayerStats(attackerID, damageValue, typeStr);
+            }
+
+            tempIdx++;
         }
     }
 
@@ -752,6 +782,8 @@ private static void UpdatePlayerStats(int id, float val, string type)
         else if (type.Contains("Freeze") || type.Contains("Chill") || type.Contains("Frost")) stats.TotalFrost += val;
     }
 }
+
+
     // this is to catch starting time for remote player and minion damage since it doesn't go through the normal damage pipeline
            [HarmonyPatch(typeof(Attack), "ModifyDamageWithModifierAndCritical")]
     public class RemoteDamageHook
@@ -809,6 +841,8 @@ private static void UpdatePlayerStats(int id, float val, string type)
                     // here loop up BLESSED and FURY DMG, so we can credit it to the attacker
                     int attackerActorID = stats.ActorID;
                     int lookupId = (attackerActorID == 0) ? 1 : attackerActorID + 1;
+                    Debug.Log($"[DEBUG BLEED] Base: {PerkDatabase.Instance.BleedBaseDamage} | From Hit: {damageValue * PerkDatabase.Instance.BleedHitDamagePercentage / 100f} | Multiplier: {stats.Bleed.DamageMultiplierPCT}% | FINAL TOTAL: {(PerkDatabase.Instance.BleedBaseDamage+ (damageValue * PerkDatabase.Instance.BleedHitDamagePercentage / 100f))* ( stats.Bleed.DamageMultiplierPCT / 100f)}");
+                    Debug.Log($"[DPS Meter] Attacker {stats.name} has {stats.Attack.PhysicalPower} Physical Power and dealt {damageValue} damage has bleed multiplier of {stats.Bleed.IsActiveByUpgraded}");
 
                     if (Plugin.Instance.RemotePlayers.TryGetValue(lookupId, out var playerStats))
                     {
