@@ -1,4 +1,5 @@
-﻿using BepInEx;
+﻿using System;
+using BepInEx;
 using HarmonyLib;
 using UnityEngine;
 using UnityEngine.UI;
@@ -20,6 +21,10 @@ using RR;
 using Fusion;
 using System.Linq;
 using TMPro;
+using JetBrains.Annotations;
+using RR.Game.Items;
+using BepInEx.Configuration;
+using RaidersOfBlackveilMod;
 
 namespace BlackveilDpsMeter
 {
@@ -28,39 +33,119 @@ namespace BlackveilDpsMeter
     {
         public static Plugin Instance;
         public PlayerStats LocalPlayerStats = new PlayerStats();
+        public Dictionary<int, PlayerStats> AllPlayerStats = new Dictionary<int, PlayerStats>(); // Track ALL players' damage
         public float ActiveCombatTime = 0f; // Tracks accumulated combat seconds
         public float StartTime = -1f;
         public float LastHitTime = -1f; // out of fight timer
+        public int LocalPlayerActorID = -1; // Captured when joining lobby, used to filter damage logs in multiplayer
         private static bool _instanceExists = false;
+        public bool fetchingActorID = false; // Debug toggle to enable ActorID fetching logs in the Update loop
+        private bool mainSceneLoaded = false; // Flag to ensure we only reset the meter once per scene load
+        public bool go_timer = false; // Debug toggle to enable combat timer logs in the Update loop
+
+        public static ConfigEntry<bool> ShowDPSMeterConfig;
+        public static ConfigEntry<bool> ShowGroupDPSConfig;
+        public static ConfigEntry<bool> ShowCombatInfoConfig;
+        public static ConfigEntry<string> SelectedElementConfig;
+
+        public static bool ShowDPSMeter
+        {
+            get => ShowDPSMeterConfig?.Value ?? false;
+            set
+            {
+                if (ShowDPSMeterConfig != null)
+                {
+                    ShowDPSMeterConfig.Value = value;
+                    // Force BepInEx to save the config file to disk immediately
+                    ShowDPSMeterConfig.ConfigFile.Save(); 
+                }
+
+            }
+        }
+
+        public static bool ShowGroupDPS
+        {
+            get => ShowGroupDPSConfig?.Value ?? false;
+            set
+            {
+                if (ShowGroupDPSConfig != null)
+                {
+                    ShowGroupDPSConfig.Value = value;
+                    ShowGroupDPSConfig.ConfigFile.Save();
+                }
+            }
+        }
+
+        public static bool ShowCombatInfo
+        {
+            get => ShowCombatInfoConfig?.Value ?? false;
+            set
+            {
+                if (ShowCombatInfoConfig != null)
+                {
+                    ShowCombatInfoConfig.Value = value;
+                    ShowCombatInfoConfig.ConfigFile.Save();
+                }
+            }
+        }
+
+    // 2. Create a clean public property for your UI to read and write to
+        public static string SelectedElement
+        {
+            get => SelectedElementConfig?.Value ?? ""; // Default to empty string if config is null
+            set
+            {
+                if (SelectedElementConfig != null)
+                {
+                    SelectedElementConfig.Value = value;
+                    SelectedElementConfig.ConfigFile.Save();
+                }
+            }
+        }
         
         void Awake()
         {
-            Instance = this;
-
-            if (_instanceExists)
+            // 1. Check for duplicates immediately
+            if (_instanceExists && Instance != this)
             {
+                Logger.LogWarning("Duplicate plugin instance detected. Destroying duplicate.");
                 Destroy(this.gameObject);
-                return;
+                return; // STOP everything right here. Do not patch, do not subscribe.
             }
 
+            // 2. Set up the legitimate singleton instance
+            Instance = this;
             _instanceExists = true;
             
-            // 1. Force Harmony to patch the game's own Update loop as a heartbeat
+            // Ensure this core plugin object survives scene loads if necessary
+            DontDestroyOnLoad(this.gameObject);
+
+            // 3. Bind persistent config entries
+            ShowDPSMeterConfig = Config.Bind("General", "ShowDPSMeter", false, "Show the DPS meter overlay.");
+            ShowGroupDPSConfig = Config.Bind("General", "ShowGroupDPS", false, "Show the group DPS display.");
+            ShowCombatInfoConfig = Config.Bind("General", "ShowCombatInfo", false, "Show additional combat information.");
+            SelectedElementConfig = Config.Bind("General", "SelectedElement", "", "The currently selected element for combat information.");
+            PersistentUI._isVisible = ShowDPSMeter;
+
+            // 4. Run initialization ONCE and ONLY once
             var harmony = new Harmony("com.gemini.dpsmeter");
             harmony.PatchAll();
+            HealthDamageLogPatch.Apply(harmony);
+            SummonValidationPatches.Apply(harmony);
 
-            // 2. Create a hidden object that survives scene changes
+            // 5. Create your UI Bus
             var tracker = new GameObject("DPS_Global_Bus");
             tracker.hideFlags = HideFlags.HideAndDontSave;
-            Object.DontDestroyOnLoad(tracker);
+            DontDestroyOnLoad(tracker);
             tracker.AddComponent<PersistentUI>();
-            tracker.AddComponent<SummonController>();
+            tracker.AddComponent<CombatInfoModule>();
+            tracker.AddComponent<GroupDamageMeter>();
 
-            // Subscribe to Unity's sceneLoaded event
+            // 5. Safe event subscription
+            SceneManager.sceneLoaded -= OnSceneLoaded;
             SceneManager.sceneLoaded += OnSceneLoaded;
 
             Logger.LogInfo("Mod Injected: Hidden Bus & Harmony Patches Active.");
-
         }
         public void ResetMeter()
         {
@@ -76,21 +161,51 @@ namespace BlackveilDpsMeter
             LocalPlayerStats.TotalMinion = 0f;
             LocalPlayerStats.TotalBless = 0f;
             LocalPlayerStats.TotalFury = 0f;
+            
+            // Reset all group player stats
+            foreach (var kvp in AllPlayerStats)
+            {
+                kvp.Value.Reset();
+            }
+            AllPlayerStats.Clear();
+            
             Plugin.Instance.ActiveCombatTime = 0.11f;
         }
-        // This method is called every time a new scene is loaded and resets the DPSmeter
-        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+
+        public PlayerStats GetPlayerStats(int actorID)
         {
-            // List of scenes you DON'T want to reset on (like the Main Menu)
-            if (scene.name != "MainMenu" && scene.name != "Lobby")
+            if (!AllPlayerStats.ContainsKey(actorID))
             {
-                ResetMeter();
-                Logger.LogInfo($"Meter reset via Scene Load: {scene.name}");
+                AllPlayerStats[actorID] = new PlayerStats { ActorID = actorID };
             }
+            return AllPlayerStats[actorID];
+        }
+        public void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            ResetMeter();
+            Logger.LogInfo($"Meter reset via Scene Load: {scene.name}");
+            // Capture ActorID when joining Lobby
+            if (scene.name == "MainScene")
+            {
+                mainSceneLoaded = true;
+                go_timer = false;
+            }
+            else if (scene.name != "MainScene" && mainSceneLoaded)
+            {
+                mainSceneLoaded = false;
+                fetchingActorID = true;
+                go_timer = true;
+            }
+            else
+            {
+                fetchingActorID = false;
+            }
+            Logger.LogInfo($"[DPS] Scene Loaded: {scene.name} | Fetching ActorID: {fetchingActorID}");
         }
     }
     public class PlayerStats
     {
+        public int ActorID = -1;  // Captured when lobby is joined
         public string Name = "LocalPlayer"; 
         public float TotalDamage;
         public float TotalBurn;
@@ -118,9 +233,10 @@ namespace BlackveilDpsMeter
             TotalMinion = 0f;
             TotalBless = 0f;
             TotalFury = 0f;
-        }
+        }    
     }
-
+    // leaderboard purposes, separate from the local player stats to avoid any accidental resets or data conflicts
+    
     // This class handles the actual rendering and stays alive forever
     public class PersistentUI : MonoBehaviour
     {
@@ -128,15 +244,15 @@ namespace BlackveilDpsMeter
         private GameObject _canvasObj;
         private GameObject _panelObj;
         private float dpsupdateTime = 0f;
-        private Canvas _targetCanvas;
-        private bool _isVisible = false; // Start hidden, toggle with F11
+        public static Canvas _targetCanvas;
+        public static bool _isVisible = false; // Start hidden, toggle with F11
         private bool _isKeyHeld = false; // Our custom debounce
 
         void Start()
         {
             // 1. Create the Root Canvas
             _canvasObj = new GameObject("DPS_Overlay_Canvas");
-            Object.DontDestroyOnLoad(_canvasObj);
+            UnityEngine.Object.DontDestroyOnLoad(_canvasObj);
             
             Canvas canvas = _canvasObj.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -148,7 +264,7 @@ namespace BlackveilDpsMeter
             _panelObj = new GameObject("DPS_Background_Frame");
             _panelObj.transform.SetParent(_canvasObj.transform, false);
 
-            Image frameImage = _panelObj.AddComponent<Image>();
+            UnityEngine.UI.Image frameImage = _panelObj.AddComponent<UnityEngine.UI.Image>();
             // A "Bronze/Gold" color to match the image metal
             frameImage.color = new Color(0.45f, 0.35f, 0.2f, 1f); 
 
@@ -157,7 +273,7 @@ namespace BlackveilDpsMeter
             panelRect.anchorMax = new Vector2(1, 0.5f);
             panelRect.pivot = new Vector2(1, 0.5f);
             panelRect.anchoredPosition = new Vector2(-10, 0);
-            panelRect.sizeDelta = new Vector2(220, 210);
+            panelRect.sizeDelta = new Vector2(220, 220);
 
             // Add an Outline component to give it the "raised" metal edge look
             var outline = _panelObj.AddComponent<UnityEngine.UI.Outline>();
@@ -168,7 +284,7 @@ namespace BlackveilDpsMeter
             GameObject innerArea = new GameObject("Inner_Area");
             innerArea.transform.SetParent(_panelObj.transform, false);
 
-            Image innerImage = innerArea.AddComponent<Image>();
+            UnityEngine.UI.Image innerImage = innerArea.AddComponent<UnityEngine.UI.Image>();
             // Dark Teal/Green color from your image
             innerImage.color = new Color(0f, 0f, 0f, 0.95f); 
 
@@ -226,16 +342,42 @@ namespace BlackveilDpsMeter
             _uiText.enableWordWrapping = false;
 
             _targetCanvas = _canvasObj.GetComponent<Canvas>();
-            _targetCanvas.enabled = false; // Start with the canvas disabled (hidden)
+            _targetCanvas.enabled = _isVisible; // Restore overlay visibility from config
+
         }
         
 
         private float _nextDebugTime = 0f;
+
         void Update()
         {
+            // Capture ActorID from LocalPlayer on first frame available
+            if (Plugin.Instance.fetchingActorID)
+            {
+                var pm = RR.PlayerManager.Instance;
+                if (pm != null && pm.LocalPlayer != null)
+                {
+                    int capturedActorID = -1;
+                    Debug.Log("[DPS] Attempting to capture LocalPlayer ActorID...");
+                    // Try 1: local playerslot
+                    Debug.Log($"[DPS] PlayerManager.LocalPlayer: {pm.LocalPlayer.name} | ActorID: {pm.LocalPlayerSlot}");
+                    capturedActorID = pm.LocalPlayerSlot;
+                    
+                    if (capturedActorID != -1)
+                    {
+                        Debug.Log($"[DPS] Captured LocalPlayer ActorID: {capturedActorID}");
+                        Plugin.Instance.LocalPlayerActorID = capturedActorID;
+                        Plugin.Instance.LocalPlayerStats.ActorID = capturedActorID;
+                        Plugin.Instance.fetchingActorID = false;
+                        Debug.Log($"[DPS] ✓ LocalPlayerActorID set to {Plugin.Instance.LocalPlayerActorID}");
+                    }
+                }
+            }
+
             if (Time.time >= _nextDebugTime)
             {
                 _nextDebugTime = Time.time + 2.0f;
+                Debug.Log("[DPS Debug] Heartbeat");
                 PrintActivePlayersDebug();
             }
             if (Plugin.Instance.StartTime > 0)
@@ -288,16 +430,16 @@ namespace BlackveilDpsMeter
                     }
 
                     // Add segments in order of priority
-                    AddClippedSegment(Plugin.Instance.LocalPlayerStats.TotalBurn, "#FFA500");
-                    AddClippedSegment(Plugin.Instance.LocalPlayerStats.TotalPoison, "#800080");
-                    AddClippedSegment(Plugin.Instance.LocalPlayerStats.TotalBleed, "#FF0000");
-                    AddClippedSegment(Plugin.Instance.LocalPlayerStats.TotalShock, "#d9ff00");
-                    AddClippedSegment(Plugin.Instance.LocalPlayerStats.TotalRoot, "#805700");
-                    AddClippedSegment(Plugin.Instance.LocalPlayerStats.TotalFrost, "#00FFFF");
-                    AddClippedSegment(Plugin.Instance.LocalPlayerStats.TotalCurse, "#019262");
-                    AddClippedSegment(Plugin.Instance.LocalPlayerStats.TotalMinion, "#ff00f2");
-                    AddClippedSegment(Plugin.Instance.LocalPlayerStats.TotalBless, "#78a70a");
-                    AddClippedSegment(Plugin.Instance.LocalPlayerStats.TotalFury, "#c22f02");
+                    AddClippedSegment(Plugin.Instance.LocalPlayerStats.TotalBurn, "#f17728");
+                    AddClippedSegment(Plugin.Instance.LocalPlayerStats.TotalPoison, "#952db8");
+                    AddClippedSegment(Plugin.Instance.LocalPlayerStats.TotalBleed, "#c94a46");
+                    AddClippedSegment(Plugin.Instance.LocalPlayerStats.TotalShock, "#b7a93f");
+                    AddClippedSegment(Plugin.Instance.LocalPlayerStats.TotalRoot, "#be927e");
+                    AddClippedSegment(Plugin.Instance.LocalPlayerStats.TotalFrost, "#57cccc");
+                    AddClippedSegment(Plugin.Instance.LocalPlayerStats.TotalCurse, "#267b5b");
+                    AddClippedSegment(Plugin.Instance.LocalPlayerStats.TotalMinion, "#f06ee9");
+                    AddClippedSegment(Plugin.Instance.LocalPlayerStats.TotalBless, "#d8f19c");
+                    AddClippedSegment(Plugin.Instance.LocalPlayerStats.TotalFury, "#64210f");
 
                     // FILLER: If damage types don't sum to 100% (Raw damage), or rounding left a gap
                     if (remainingSlots > 0) {
@@ -306,20 +448,21 @@ namespace BlackveilDpsMeter
                     // -------------------------
 
 
-                    _uiText.text = string.Join("\n", 
+                    string fullContent = string.Join("\n", 
                         visualBar,
-                        ColorText($"TOTAL DPS: {dps_Total:F1}", "#FFFFFF"),
-                        ColorText(FormatLine("BURN", Plugin.Instance.LocalPlayerStats.TotalBurn), "#FFA500"),
-                        ColorText(FormatLine("POISON", Plugin.Instance.LocalPlayerStats.TotalPoison), "#800080"),
-                        ColorText(FormatLine("BLEED", Plugin.Instance.LocalPlayerStats.TotalBleed), "#FF0000"),
-                        ColorText(FormatLine("SHOCK", Plugin.Instance.LocalPlayerStats.TotalShock), "#d9ff00"),
-                        ColorText(FormatLine("ROOT", Plugin.Instance.LocalPlayerStats.TotalRoot), "#805700"),
-                        ColorText(FormatLine("FROST", Plugin.Instance.LocalPlayerStats.TotalFrost), "#00FFFF"),
-                        ColorText(FormatLine("CURSE", Plugin.Instance.LocalPlayerStats.TotalCurse), "#019262"),
-                        ColorText(FormatLine("MINION", Plugin.Instance.LocalPlayerStats.TotalMinion), "#ff00f2"),
-                        ColorText(FormatLine("BLESS", Plugin.Instance.LocalPlayerStats.TotalBless), "#78a70a"),
-                        ColorText(FormatLine("FURY", Plugin.Instance.LocalPlayerStats.TotalFury), "#c22f02")
+                        $"<size=+4>{ColorText($"Total DPS: {dps_Total:F1}", "#dbdbdb")}</size>",
+                        ColorText(FormatLine("Burn", Plugin.Instance.LocalPlayerStats.TotalBurn), "#f17728"),
+                        ColorText(FormatLine("Poison", Plugin.Instance.LocalPlayerStats.TotalPoison), "#952db8"),
+                        ColorText(FormatLine("Bleed", Plugin.Instance.LocalPlayerStats.TotalBleed), "#c94a46"),
+                        ColorText(FormatLine("Shock", Plugin.Instance.LocalPlayerStats.TotalShock), "#b7a93f"),
+                        ColorText(FormatLine("Root", Plugin.Instance.LocalPlayerStats.TotalRoot), "#be927e"),
+                        ColorText(FormatLine("Frost", Plugin.Instance.LocalPlayerStats.TotalFrost), "#57cccc"),
+                        ColorText(FormatLine("Curse", Plugin.Instance.LocalPlayerStats.TotalCurse), "#267b5b"),
+                        ColorText(FormatLine("Minion", Plugin.Instance.LocalPlayerStats.TotalMinion), "#f06ee9"),
+                        ColorText(FormatLine("Bless", Plugin.Instance.LocalPlayerStats.TotalBless), "#d8f19c"),
+                        ColorText(FormatLine("Fury", Plugin.Instance.LocalPlayerStats.TotalFury), "#64210f")
                     );
+                    _uiText.text = $"<width=75%>{fullContent}</width>";
                 }
                 else
                 {
@@ -335,19 +478,24 @@ namespace BlackveilDpsMeter
             {
                 Plugin.Instance.ResetMeter();
             }
-            // Check for F11 key press
-            if (ui_pressed && !_isKeyHeld)
+            
+            if (ui_pressed && !_isKeyHeld )
             {   
-                Debug.Log("[DPS] F11 Pressed: Toggling UI Visibility");
+                Debug.Log("[DPS] P Pressed: Toggling UI Visibility");
                 _isKeyHeld = true;
+                Debug.Log($"[DPS] Current Visibility: {_isVisible} | Toggling to: {!_isVisible} | settings ShowDPSMeter: {Plugin.ShowDPSMeter}");
+                if (Plugin.ShowDPSMeter)
+                {
                 ToggleUIVisibility();
+                }
             }
             else if (!ui_pressed)
             {
-                _isKeyHeld = false; // Unlock when user lets go of F11
+                _isKeyHeld = false; // Unlock when user lets go of P
             }
         }
-        private void ToggleUIVisibility()
+ 
+        public void ToggleUIVisibility()
         {
             _isVisible = !_isVisible;
             _targetCanvas.enabled = _isVisible;
@@ -389,37 +537,208 @@ namespace BlackveilDpsMeter
         }
     }
 
-[HarmonyPatch(typeof(RR.Game.Stats.Health), "AddDamageData")]
-public static class DamageDataPatch
+internal static class HealthDamageLogPatch
 {
-    static void Prefix(float damageValue, object damageType, int attackerID)
+    internal static void Apply(Harmony harmony)
     {
-        // 1. Get a safe string for the damage type
-        string typeStr = damageType?.ToString() ?? "";
+        if (!HealthDamageLogController.Initialize()) { return; }
 
-        // 2. Update the local player stats
-        Debug.Log($"[DPS Meter] Damage Detected: {damageValue} of type {typeStr} from AttackerID {attackerID}");
-        
-        UpdatePlayerStats(damageValue, typeStr);
+        var render = AccessTools.Method(typeof(Health), "Render");
+        if (render == null)
+        {
+            Debug.LogWarning("DPS Meter: Health.Render not found — damage logging inactive.");
+            return;
+        }
+        harmony.Patch(render,
+            prefix: new HarmonyMethod(typeof(HealthDamageLogPatch), nameof(RenderPrefix)),
+            postfix: new HarmonyMethod(typeof(HealthDamageLogPatch), nameof(RenderPostfix)));
+        Debug.Log("DPS Meter: Health.Render patched.");
     }
 
-    private static void UpdatePlayerStats(float val, string type)
+    private static void RenderPrefix(Health __instance, out int __state) =>
+        HealthDamageLogController.CaptureState(__instance, out __state);
+
+    private static void RenderPostfix(Health __instance, int __state) =>
+        HealthDamageLogController.ProcessNewEntries(__instance, __state);
+}
+
+internal static class HealthDamageLogController
+{
+    private static FieldInfo _lastVisualizedField;
+    private static PropertyInfo _arrayProp;
+    private static MethodInfo _arrayGetMethod;
+    private static FieldInfo _valueField;
+    private static FieldInfo _attackerIdField;
+    private static FieldInfo _damageTypeField;
+    private static FieldInfo _criticalField;
+    private static FieldInfo _criticalInnerField;
+
+    internal static bool Initialize()
     {
-        // --- GLOBAL COMBAT TIMING ---
+        _lastVisualizedField = AccessTools.Field(typeof(Health), "_lastVisualizedDamageData");
+        if (_lastVisualizedField == null)
+        {
+            Debug.LogWarning("DPS Meter: Health._lastVisualizedDamageData not found — inactive.");
+            return false;
+        }
+
+        var nddType = typeof(Health).GetNestedType("NetworkedDamageData", BindingFlags.NonPublic);
+        if (nddType == null)
+        {
+            Debug.LogWarning("DPS Meter: Health.NetworkedDamageData not found — inactive.");
+            return false;
+        }
+
+        _arrayProp = AccessTools.Property(typeof(Health), "ReceivedDamageDataArray");
+        if (_arrayProp == null)
+        {
+            Debug.LogWarning("DPS Meter: Health.ReceivedDamageDataArray not found — inactive.");
+            return false;
+        }
+
+        var arrayType = typeof(NetworkArray<>).MakeGenericType(nddType);
+        _arrayGetMethod = arrayType.GetMethod("Get") ?? arrayType.GetProperty("Item")?.GetMethod;
+        if (_arrayGetMethod == null)
+        {
+            Debug.LogWarning("DPS Meter: NetworkArray<T>.Get/Item not found — inactive.");
+            return false;
+        }
+
+        _valueField = nddType.GetField("value");
+        _attackerIdField = nddType.GetField("attackerID");
+        _damageTypeField = nddType.GetField("damageStatusType");
+        _criticalField = nddType.GetField("critical");
+
+        if (_criticalField != null)
+        {
+            var nbType = _criticalField.FieldType;
+            _criticalInnerField =
+                nbType.GetField("_isSet", BindingFlags.NonPublic | BindingFlags.Instance) ??
+                nbType.GetField("_value", BindingFlags.NonPublic | BindingFlags.Instance) ??
+                nbType.GetField("value", BindingFlags.NonPublic | BindingFlags.Instance);
+        }
+
+        return true;
+    }
+
+    internal static void CaptureState(Health instance, out int state)
+    {
+        state = (int)_lastVisualizedField.GetValue(instance);
+    }
+
+    internal static void ProcessNewEntries(Health instance, int oldCounter)
+    {
+        try
+        {
+            int newCounter = (int)_lastVisualizedField.GetValue(instance);
+            if (newCounter <= oldCounter) { return; }
+
+            object array = _arrayProp.GetValue(instance);
+            for (int i = oldCounter; i < newCounter; i++)
+            {
+                object entry = _arrayGetMethod.Invoke(array, new object[] { i % 64 });
+                if (entry == null) { continue; }
+
+                float val = (float)(_valueField?.GetValue(entry) ?? 0f);
+                if (val == 0f) { continue; } // skip dodges
+
+                int attackerId = (int)(_attackerIdField?.GetValue(entry) ?? -1);
+                object statusType = _damageTypeField?.GetValue(entry);
+                bool crit = ReadCritical(entry);
+
+                UpdatePlayerStats(val, statusType?.ToString() ?? "", attackerId, instance);
+                Debug.Log($"DPS Meter [{instance.name}] val={val:F1} type={statusType} crit={crit} attackerId={attackerId}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"DPS Meter: error — {ex.Message}");
+        }
+    }
+
+    private static bool ReadCritical(object entry)
+    {
+        if (_criticalField == null || _criticalInnerField == null) { return false; }
+        try
+        {
+            object nb = _criticalField.GetValue(entry);
+            if (nb == null) { return false; }
+            var raw = _criticalInnerField.GetValue(nb);
+            return raw is byte b ? b != 0 : raw is int v ? v != 0 : false;
+        }
+        catch { return false; }
+    }
+
+    private static void UpdatePlayerStats(float val, string type, int attackerId, Health victimHealth = null)
+    {
+        // --- GLOBAL COMBAT TIMING (updated for any damage event) ---
         if (Plugin.Instance.StartTime < 0) Plugin.Instance.StartTime = Time.time;
         Plugin.Instance.LastHitTime = Time.time;
 
-        // --- STAT UPDATING ---
-        var stats = Plugin.Instance.LocalPlayerStats;
-        stats.TotalDamage += val;
+        Debug.Log($"[DPS Meter] Processing Damage: {val} Type: {type} AttackerID: {attackerId}");
 
-        if (type.Contains("Burn")) stats.TotalBurn += val;
-        else if (type.Contains("Poison")) stats.TotalPoison += val;
-        else if (type.Contains("Bleed")) stats.TotalBleed += val;
-        else if (type.Contains("Shock")) stats.TotalShock += val;
-        else if (type.Contains("Curse")) stats.TotalCurse += val;
-        else if (type.Contains("Root")) stats.TotalRoot += val;
-        else if (type.Contains("Freeze") || type.Contains("Chill") || type.Contains("Frost")) stats.TotalFrost += val;
+        // Track TOTAL damage for ALL players in the group (no type breakdown for group)
+        var playerStats = Plugin.Instance.GetPlayerStats(attackerId);
+        playerStats.TotalDamage += val;
+
+        // Also update local player stats with full detail (for backwards compatibility and primary display)
+        if (attackerId == Plugin.Instance.LocalPlayerActorID)
+        {
+            var localStats = Plugin.Instance.LocalPlayerStats;
+            localStats.TotalDamage += val;
+            
+            if (type.Contains("Burn")) localStats.TotalBurn += val;
+            else if (type.Contains("Poison")) localStats.TotalPoison += val;
+            else if (type.Contains("Bleed")) localStats.TotalBleed += val;
+            else if (type.Contains("Shock")) localStats.TotalShock += val;
+            else if (type.Contains("Curse")) localStats.TotalCurse += val;
+            else if (type.Contains("Root")) localStats.TotalRoot += val;
+            else if (type.Contains("Freeze") || type.Contains("Chill") || type.Contains("Frost")) 
+            {
+                localStats.TotalFrost += val;
+            }
+
+            // --- FROZEN BONUS DETECTION ---
+            if (victimHealth != null)
+            {
+                try
+                {
+                    var victimStats = victimHealth.GetComponent<StatsManager>();
+                    if (victimStats != null && victimStats.IsFrozen && victimStats.ActorID != attackerId)
+                    {
+                        // Victim is frozen, check for frozen multiplier bonus
+                        Debug.Log($"[DPS] Victim is frozen. Checking for frozen bonus from attacker {attackerId}...");
+                        var pm = RR.PlayerManager.Instance;
+                        if (pm != null)
+                        {
+                            var attackerPlayer = pm.GetPlayers().FirstOrDefault(p => 
+                            {
+                                var pStats = p.GetComponent<StatsManager>();
+                                return pStats != null && pStats.ActorID == attackerId;
+                            });
+                            
+                            if (attackerPlayer != null)
+                            {
+                                var chill = attackerPlayer.GetComponent<RR.Game.Stats.Chill>();
+                                if (chill != null)
+                                {
+                                    float multiplier = chill.DamageMultiplierAgainstFrozenTarget;
+                                    if (multiplier > 1.0f)
+                                    {
+                                        float damageBeforeFrozen = val / multiplier;
+                                        float frozenBonus = val - damageBeforeFrozen;
+                                        localStats.TotalFrost += frozenBonus;
+                                        playerStats.TotalDamage += frozenBonus;
+                                        Debug.Log($"[DPS] Frozen Bonus Detected: +{frozenBonus:F1}");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { /* Silent fail for frozen check */ }
+            }
+        }
     }
 }
     // this is to catch starting time for remote player and minion damage since it doesn't go through the normal damage pipeline
@@ -435,59 +754,58 @@ public class RemoteDamageHook
 
                 if (onlyForUI)
                 {   
-                    Debug.Log($"[DPS Meter] Attacker {stats.name} dealt {damageValue} damage to {victim?.name}");
                     if (Plugin.Instance.StartTime < 0) Plugin.Instance.StartTime = Time.time;
                     Plugin.Instance.LastHitTime = Time.time;
-                    var fields = Traverse.Create(stats).Fields();
-                    Debug.Log($"--- Inspecting StatsManager ({fields.Count} fields found) ---");
-                    foreach (var fieldName in fields)
-                    {
-                        var val = Traverse.Create(stats).Field(fieldName).GetValue();
-                        Debug.Log($"Field: {fieldName} | Value: {val}");
-                    }
                 }
-                else if (stats.IsChampionMinion && !onlyForUI)
+                else if (stats.IsChampionMinion)
                 {
-                    // 2. Use our Hooked SpawnerActorID
+                    // Track TOTAL minion damage for ALL players (no type breakdown)
                     int ownerActorID = stats.SpawnerActorID;
 
                     if (ownerActorID != -1) // -1 is InvalidActorID
                     {
-                        // 3. Check if this is the local player's minion
-                        if (stats.IsChampion)
+                        var ownerStats = Plugin.Instance.GetPlayerStats(ownerActorID);
+                        ownerStats.TotalDamage += damageValue;
+                        
+                        // Also update local player if this is their minion
+                        if (ownerActorID == Plugin.Instance.LocalPlayerActorID)
                         {
                             Plugin.Instance.LocalPlayerStats.TotalMinion += damageValue;
-                            Debug.Log($"[DPS] Distilled {damageValue} Minion Damage from Actor {stats.ActorID}");
                         }
+                        
+                        Debug.Log($"[DPS] Distilled {damageValue} Minion Damage from Actor {stats.ActorID}");
                     }
                 }
-                else if (stats.IsChampion && !onlyForUI)
+                else if (stats.IsChampion)
                 {
-                    // Track BLESSED and FURY DMG for local player
-                    Debug.Log($"[DEBUG BLEED] Base: {PerkDatabase.Instance.BleedBaseDamage} | From Hit: {damageValue * PerkDatabase.Instance.BleedHitDamagePercentage / 100f} | Multiplier: {stats.Bleed.DamageMultiplierPCT}% | FINAL TOTAL: {(PerkDatabase.Instance.BleedBaseDamage+ (damageValue * PerkDatabase.Instance.BleedHitDamagePercentage / 100f))* ( stats.Bleed.DamageMultiplierPCT / 100f)}");
-                    Debug.Log($"[DPS Meter] Attacker {stats.name} has {stats.Attack.PhysicalPower} Physical Power and dealt {damageValue} damage has bleed multiplier of {stats.Bleed.IsActiveByUpgraded}");
-
+                    // Track BLESSED and FURY for local player only
+                    if (stats.ActorID != Plugin.Instance.LocalPlayerActorID) return;
+                    
+                    var localStats = Plugin.Instance.LocalPlayerStats;
+                    
                     switch (userAction)
-                    {
-                        case UserAction.Attack:
                         {
-                            if (damageDesc.blessedAttack)
+                            case UserAction.Attack:
                             {
-                                float multiplier = 1f + (stats.Bless.EmpoweredAttackDamageIncrementPCT / 100f);
-                                float originalDamage = damageValue / multiplier;
-                                Plugin.Instance.LocalPlayerStats.TotalBless += damageValue - originalDamage;
-                                Debug.Log($"[DPS] Credited {stats.Bless.EmpoweredAttackDamageIncrementPCT}% Blessed Damage");
+                                if (damageDesc.blessedAttack)
+                                {
+                                    float multiplier = 1f + (stats.Bless.EmpoweredAttackDamageIncrementPCT / 100f);
+                                    float originalDamage = damageValue / multiplier;
+                                    localStats.TotalBless += damageValue - originalDamage;
+                                    
+                                    Debug.Log($"[DPS] Credited {stats.Bless.EmpoweredAttackDamageIncrementPCT}% Blessed Damage");
 
+                                }
+                                if (damageDesc.furyAttack)
+                                {   
+                                    float multiplier = 1f + (stats.Fury.BoostedAttackDamageIncPCT.Value / 100f);
+                                    float originalDamage = damageValue / multiplier;
+                                    localStats.TotalFury += damageValue - originalDamage;
+                                }
                             }
-                            if (damageDesc.furyAttack)
-                            {   
-                                float multiplier = 1f + (stats.Fury.BoostedAttackDamageIncPCT.Value / 100f);
-                                float originalDamage = damageValue / multiplier;
-                                Plugin.Instance.LocalPlayerStats.TotalFury += damageValue - originalDamage;
-                            }
-                        }
                         break;
-                    }
+                        }
+                    
                 }
 
             }
@@ -501,42 +819,39 @@ public class RemoteDamageHook
         static void Postfix(StatsManager __instance, StatsManager victim, ref DamageDescriptor dmgDesc, bool calcForUI)
         {
            
-            if (calcForUI || victim == null || __instance == null) return;
+            if ( victim == null || __instance == null) return;
 
             if (victim.IsFrozen)
-            {
-                var chill = __instance.GetComponent<RR.Game.Stats.Chill>();
-                
-                if (chill != null)
                 {
-                    float multiplier = chill.DamageMultiplierAgainstFrozenTarget;
+                    var chill = __instance.GetComponent<RR.Game.Stats.Chill>();
+                    var stats = __instance.GetComponent<RR.Game.Stats.StatsManager>();
                     
-                    // Prevent division by zero if multiplier isn't set
-                    if (multiplier <= 1.0f) return;
-
-                    float damageBeforeFrozen = dmgDesc.damageValue / multiplier;
-                    float frozenDelta = dmgDesc.damageValue - damageBeforeFrozen;
-
-                    if (frozenDelta > 0)
+                    if (chill != null && stats != null && stats.ActorID == Plugin.Instance.LocalPlayerActorID)
                     {
-                        // Track frozen damage for local player
-                        Plugin.Instance.LocalPlayerStats.TotalFrost += frozenDelta;
+                        float multiplier = chill.DamageMultiplierAgainstFrozenTarget;
                         
-                        // Also track global combat timing for this player
-                        if (Plugin.Instance.StartTime < 0) Plugin.Instance.StartTime = Time.time;
-                        Plugin.Instance.LastHitTime = Time.time;
+                        // Prevent division by zero if multiplier isn't set
+                        if (multiplier <= 1.0f) return;
 
-                        Debug.Log($"[DPS Meter] Dealt {frozenDelta} Frozen Bonus Damage.");
+                        float damageBeforeFrozen = dmgDesc.damageValue / multiplier;
+                        float frozenDelta = dmgDesc.damageValue - damageBeforeFrozen;
+
+                        if (frozenDelta > 0)
+                        {
+                            // Track frozen damage for local player
+                            Plugin.Instance.LocalPlayerStats.TotalFrost += frozenDelta;
+                            
+                            // Also track global combat timing for this player
+                            if (Plugin.Instance.StartTime < 0) Plugin.Instance.StartTime = Time.time;
+                            Plugin.Instance.LastHitTime = Time.time;
+
+                            Debug.Log($"[DPS Meter] Dealt {frozenDelta} Frozen Bonus Damage.");
+                        }
                     }
                 }
-            }
+            
         }
     }
-
-    // sending to DPS to lobby
-    /// <summary>
-    /// 
-    /// </summary>
 
     // Allocate minons correctly to the summoner
     public class SummonController : MonoBehaviour 
@@ -545,37 +860,79 @@ public class RemoteDamageHook
         {
             Debug.Log("Persistent Summon Hook Controller Active.");
         }
+
     }
     public static class SummonValidationPatches
     {
         private const int INVALID_ID = -1;
 
-        [HarmonyPrefix]
-        [HarmonyPatch(typeof(StatsManager), "SpawnerActorID", MethodType.Setter)]
-        public static bool Prefix_SetSpawnerID(StatsManager __instance, int value)
+        internal static void Apply(Harmony harmony)
         {
-            if (value == INVALID_ID)
+            try
             {
-                return false;
+                // Patch StatsManager.SpawnerActorID property setter
+                var spawnerActorIdSetter = AccessTools.PropertySetter(typeof(StatsManager), "SpawnerActorID");
+                if (spawnerActorIdSetter != null)
+                {
+                    Debug.Log("[Summon] Successfully patched StatsManager.SpawnerActorID setter.");
+                }
+                else
+                {
+                    Debug.LogWarning("[Summon] Failed to find StatsManager.SpawnerActorID property setter.");
+                }
+
+                // Patch Summon.InitMinionSpawned method
+                var initMinionMethod = AccessTools.Method(typeof(Summon), "InitMinionSpawned");
+                if (initMinionMethod != null)
+                {
+                    harmony.Patch(initMinionMethod,
+                        prefix: new HarmonyMethod(typeof(SummonValidationPatches), nameof(Prefix_InitMinionSpawned)));
+                    Debug.Log("[Summon] Successfully patched Summon.InitMinionSpawned method.");
+                }
+                else
+                {
+                    Debug.LogWarning("[Summon] Failed to find Summon.InitMinionSpawned method.");
+                }
             }
-            return true;
+            catch (Exception ex)
+            {
+                Debug.LogError($"[Summon] Error applying Summon patches: {ex.Message}");
+            }
         }
 
         [HarmonyPrefix]
         [HarmonyPatch(typeof(Summon), "InitMinionSpawned")]
         public static void Prefix_InitMinionSpawned(Summon __instance, NetworkObject obj)
         {
-            // Access private _stats via Traverse
+            // 1. Safe extraction of the summoner's stats
             var summonerStats = Traverse.Create(__instance).Field<StatsManager>("_stats").Value;
+            
+            Debug.Log($"[SummonController] Minion Spawned Triggered: {obj?.name ?? "Unknown Object"} | Summoner: {summonerStats?.name ?? "NULL"}");
 
+            if (obj == null) return;
+
+            // 2. Check if both the summoner and the spawned minion have StatsManager components
             if (summonerStats != null && obj.TryGetComponent<StatsManager>(out var minionStats))
             {
                 int ownerID = summonerStats.ActorID;
+                Debug.Log($"[SummonController] Summoner ActorID: {ownerID} | Minion Current SpawnerID: {minionStats.SpawnerActorID}");
                 
                 if (ownerID != INVALID_ID)
                 {
+                    // Use Traverse to set the backing field directly if the property setter is stubborn,
+                    // OR just assign it directly now that the blocking prefix is removed.
                     minionStats.SpawnerActorID = ownerID;
+                    
+                    Debug.Log($"[SummonController] Successfully assigned SpawnerActorID {ownerID} to {obj.name}");
                 }
+                else
+                {
+                    Debug.LogWarning($"[SummonController] Did not assign ID because Summoner ActorID is INVALID (-1)");
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[SummonController] Failed to assign: SummonerStats or MinionStats is missing.");
             }
         }
     }

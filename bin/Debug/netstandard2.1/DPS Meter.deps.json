@@ -14,8 +14,8 @@
           "MonoMod.ILHelpers": "1.1.0",
           "Assembly-CSharp": "0.0.0.0",
           "BepInEx": "5.4.23.5",
-          "Fusion.Runtime": "2.0.6.0",
-          "Unity.InputSystem": "1.14.0.0",
+          "Fusion.Runtime": "2.0.12.0",
+          "Unity.InputSystem": "1.14.2.0",
           "Unity.TextMeshPro": "0.0.0.0",
           "UnityEngine.CoreModule": "0.0.0.0",
           "UnityEngine": "0.0.0.0",
@@ -23,6 +23,7 @@
           "UnityEngine.PhysicsModule": "0.0.0.0",
           "UnityEngine.TextRenderingModule": "0.0.0.0",
           "UnityEngine.UI": "1.0.0.0",
+          "UnityEngine.UIElementsModule": "0.0.0.0",
           "UnityEngine.UIModule": "0.0.0.0"
         },
         "runtime": {
@@ -223,19 +224,19 @@
           }
         }
       },
-      "Fusion.Runtime/2.0.6.0": {
+      "Fusion.Runtime/2.0.12.0": {
         "runtime": {
           "Fusion.Runtime.dll": {
-            "assemblyVersion": "2.0.6.0",
-            "fileVersion": "2.0.6.1011"
+            "assemblyVersion": "2.0.12.0",
+            "fileVersion": "2.0.12.1861"
           }
         }
       },
-      "Unity.InputSystem/1.14.0.0": {
+      "Unity.InputSystem/1.14.2.0": {
         "runtime": {
           "Unity.InputSystem.dll": {
-            "assemblyVersion": "1.14.0.0",
-            "fileVersion": "1.14.0.0"
+            "assemblyVersion": "1.14.2.0",
+            "fileVersion": "1.14.2.0"
           }
         }
       },
@@ -292,6 +293,14 @@
           "UnityEngine.UI.dll": {
             "assemblyVersion": "1.0.0.0",
             "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "UnityEngine.UIElementsModule/0.0.0.0": {
+        "runtime": {
+          "UnityEngine.UIElementsModule.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
           }
         }
       },
@@ -695,14 +704,6 @@
           }
         }
       },
-      "UnityEngine.UIElementsModule/0.0.0.0": {
-        "runtime": {
-          "UnityEngine.UIElementsModule.dll": {
-            "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.0.0.0"
-          }
-        }
-      },
       "UnityEngine.VehiclesModule/0.0.0.0": {
         "runtime": {
           "UnityEngine.VehiclesModule.dll": {
@@ -799,6 +800,22 @@
           }
         }
       },
+      "Unity.Splines/0.0.0.0": {
+        "runtime": {
+          "Unity.Splines.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
+      "Unity.Mathematics/1.0.0.0": {
+        "runtime": {
+          "Unity.Mathematics.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
       "Unity.RenderPipelines.Core.Runtime/0.0.0.0": {
         "runtime": {
           "Unity.RenderPipelines.Core.Runtime.dll": {
@@ -815,6 +832,14 @@
           }
         }
       },
+      "UniTask/0.0.0.0": {
+        "runtime": {
+          "UniTask.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
       "Newtonsoft.Json/13.0.0.0": {
         "runtime": {
           "Newtonsoft.Json.dll": {
@@ -823,11 +848,11 @@
           }
         }
       },
-      "Fusion.Realtime/2.0.6.0": {
+      "Fusion.Realtime/2.0.12.0": {
         "runtime": {
           "Fusion.Realtime.dll": {
-            "assemblyVersion": "2.0.6.0",
-            "fileVersion": "2.0.6.1011"
+            "assemblyVersion": "2.0.12.0",
+            "fileVersion": "2.0.12.1861"
           }
         }
       },
@@ -839,17 +864,25 @@
           }
         }
       },
-      "Fusion.Sockets/2.0.6.0": {
+      "Fusion.Sockets/2.0.12.0": {
         "runtime": {
           "Fusion.Sockets.dll": {
-            "assemblyVersion": "2.0.6.0",
-            "fileVersion": "2.0.6.1011"
+            "assemblyVersion": "2.0.12.0",
+            "fileVersion": "2.0.12.1861"
           }
         }
       },
       "Unity.VisualScripting.Core/0.0.0.0": {
         "runtime": {
           "Unity.VisualScripting.Core.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
+      "Unity.Localization/0.0.0.0": {
+        "runtime": {
+          "Unity.Localization.dll": {
             "assemblyVersion": "0.0.0.0",
             "fileVersion": "0.0.0.0"
           }
@@ -863,9 +896,9 @@
           }
         }
       },
-      "Unity.Localization/0.0.0.0": {
+      "Unity.Collections/0.0.0.0": {
         "runtime": {
-          "Unity.Localization.dll": {
+          "Unity.Collections.dll": {
             "assemblyVersion": "0.0.0.0",
             "fileVersion": "0.0.0.0"
           }
@@ -879,11 +912,27 @@
           }
         }
       },
-      "Photon3Unity3D/4.1.8.14": {
+      "Unity.ResourceManager/0.0.0.0": {
+        "runtime": {
+          "Unity.ResourceManager.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
+      "Photon3Unity3D/4.1.8.17": {
         "runtime": {
           "Photon3Unity3D.dll": {
-            "assemblyVersion": "4.1.8.14",
-            "fileVersion": "4.1.8.14"
+            "assemblyVersion": "4.1.8.17",
+            "fileVersion": "4.1.8.17"
+          }
+        }
+      },
+      "Backtrace.Unity/0.0.0.0": {
+        "runtime": {
+          "Backtrace.Unity.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
           }
         }
       },
@@ -895,25 +944,17 @@
           }
         }
       },
-      "Unity.Mathematics/1.0.0.0": {
+      "Lofelt.NiceVibrations/0.0.0.0": {
         "runtime": {
-          "Unity.Mathematics.dll": {
-            "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.0.0.0"
+          "Lofelt.NiceVibrations.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
           }
         }
       },
       "MoreMountains.Feedbacks.Cinemachine/0.0.0.0": {
         "runtime": {
           "MoreMountains.Feedbacks.Cinemachine.dll": {
-            "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.0.0.0"
-          }
-        }
-      },
-      "Lofelt.NiceVibrations/0.0.0.0": {
-        "runtime": {
-          "Lofelt.NiceVibrations.dll": {
             "assemblyVersion": "0.0.0.0",
             "fileVersion": "0.0.0.0"
           }
@@ -927,19 +968,19 @@
           }
         }
       },
-      "Fusion.Common/2.0.6.0": {
+      "Fusion.Common/2.0.12.0": {
         "runtime": {
           "Fusion.Common.dll": {
-            "assemblyVersion": "2.0.6.0",
-            "fileVersion": "2.0.6.1011"
+            "assemblyVersion": "2.0.12.0",
+            "fileVersion": "2.0.12.1861"
           }
         }
       },
-      "Fusion.Log/2.0.6.0": {
+      "Fusion.Log/2.0.12.0": {
         "runtime": {
           "Fusion.Log.dll": {
-            "assemblyVersion": "2.0.6.0",
-            "fileVersion": "2.0.6.1011"
+            "assemblyVersion": "2.0.12.0",
+            "fileVersion": "2.0.12.1861"
           }
         }
       },
@@ -975,14 +1016,6 @@
           }
         }
       },
-      "Unity.ResourceManager/0.0.0.0": {
-        "runtime": {
-          "Unity.ResourceManager.dll": {
-            "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.0.0.0"
-          }
-        }
-      },
       "Unity.Postprocessing.Runtime/0.0.0.0": {
         "runtime": {
           "Unity.Postprocessing.Runtime.dll": {
@@ -999,10 +1032,10 @@
           }
         }
       },
-      "Unity.Burst.Unsafe/4.0.5.0": {
+      "Unity.Collections.LowLevel.ILSupport/0.0.0.0": {
         "runtime": {
-          "Unity.Burst.Unsafe.dll": {
-            "assemblyVersion": "4.0.5.0",
+          "Unity.Collections.LowLevel.ILSupport.dll": {
+            "assemblyVersion": "0.0.0.0",
             "fileVersion": "0.0.0.0"
           }
         }
@@ -1011,6 +1044,14 @@
         "runtime": {
           "Unity.Profiling.Core.dll": {
             "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
+      "Unity.Burst.Unsafe/4.0.5.0": {
+        "runtime": {
+          "Unity.Burst.Unsafe.dll": {
+            "assemblyVersion": "4.0.5.0",
             "fileVersion": "0.0.0.0"
           }
         }
@@ -1138,12 +1179,12 @@
       "serviceable": false,
       "sha512": ""
     },
-    "Fusion.Runtime/2.0.6.0": {
+    "Fusion.Runtime/2.0.12.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
     },
-    "Unity.InputSystem/1.14.0.0": {
+    "Unity.InputSystem/1.14.2.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
@@ -1179,6 +1220,11 @@
       "sha512": ""
     },
     "UnityEngine.UI/1.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "UnityEngine.UIElementsModule/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
@@ -1433,11 +1479,6 @@
       "serviceable": false,
       "sha512": ""
     },
-    "UnityEngine.UIElementsModule/0.0.0.0": {
-      "type": "reference",
-      "serviceable": false,
-      "sha512": ""
-    },
     "UnityEngine.VehiclesModule/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
@@ -1498,6 +1539,16 @@
       "serviceable": false,
       "sha512": ""
     },
+    "Unity.Splines/0.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Unity.Mathematics/1.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
     "Unity.RenderPipelines.Core.Runtime/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
@@ -1508,12 +1559,17 @@
       "serviceable": false,
       "sha512": ""
     },
+    "UniTask/0.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
     "Newtonsoft.Json/13.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
     },
-    "Fusion.Realtime/2.0.6.0": {
+    "Fusion.Realtime/2.0.12.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
@@ -1523,7 +1579,7 @@
       "serviceable": false,
       "sha512": ""
     },
-    "Fusion.Sockets/2.0.6.0": {
+    "Fusion.Sockets/2.0.12.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
@@ -1533,12 +1589,17 @@
       "serviceable": false,
       "sha512": ""
     },
+    "Unity.Localization/0.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
     "websocket-sharp/1.0.2.59611": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
     },
-    "Unity.Localization/0.0.0.0": {
+    "Unity.Collections/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
@@ -1548,7 +1609,17 @@
       "serviceable": false,
       "sha512": ""
     },
-    "Photon3Unity3D/4.1.8.14": {
+    "Unity.ResourceManager/0.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Photon3Unity3D/4.1.8.17": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Backtrace.Unity/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
@@ -1558,7 +1629,7 @@
       "serviceable": false,
       "sha512": ""
     },
-    "Unity.Mathematics/1.0.0.0": {
+    "Lofelt.NiceVibrations/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
@@ -1568,22 +1639,17 @@
       "serviceable": false,
       "sha512": ""
     },
-    "Lofelt.NiceVibrations/0.0.0.0": {
-      "type": "reference",
-      "serviceable": false,
-      "sha512": ""
-    },
     "UUIDNext/3.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
     },
-    "Fusion.Common/2.0.6.0": {
+    "Fusion.Common/2.0.12.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
     },
-    "Fusion.Log/2.0.6.0": {
+    "Fusion.Log/2.0.12.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
@@ -1608,11 +1674,6 @@
       "serviceable": false,
       "sha512": ""
     },
-    "Unity.ResourceManager/0.0.0.0": {
-      "type": "reference",
-      "serviceable": false,
-      "sha512": ""
-    },
     "Unity.Postprocessing.Runtime/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
@@ -1623,12 +1684,17 @@
       "serviceable": false,
       "sha512": ""
     },
-    "Unity.Burst.Unsafe/4.0.5.0": {
+    "Unity.Collections.LowLevel.ILSupport/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
     },
     "Unity.Profiling.Core/0.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Unity.Burst.Unsafe/4.0.5.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
