@@ -27,6 +27,10 @@
         <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\UnityEngine.UIModule.dll</HintPath>
     </Reference>
 
+    <Reference Include="UnityEngine.IMGUIModule">
+        <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+    </Reference>
+
     <Reference Include="UnityEngine.InputLegacyModule">
         <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
     </Reference>

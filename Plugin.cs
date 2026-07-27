@@ -47,6 +47,7 @@ namespace BlackveilDpsMeter
         public static ConfigEntry<bool> ShowGroupDPSConfig;
         public static ConfigEntry<bool> ShowCombatInfoConfig;
         public static ConfigEntry<string> SelectedElementConfig;
+        public static ConfigEntry<int> MinRarityThresholdConfig; // Min rarity threshold for displayed equipment
 
         public static bool ShowDPSMeter
         {
@@ -102,7 +103,21 @@ namespace BlackveilDpsMeter
                 }
             }
         }
-        
+
+        // Minimum rarity threshold for displayed equipment (0=Common, 1=Rare, 2=Epic, 3=Legendary, 4=Mythic)
+        public static int MinRarityThreshold
+        {
+            get => MinRarityThresholdConfig?.Value ?? 2; // Default to Epic
+            set
+            {
+                if (MinRarityThresholdConfig != null)
+                {
+                    MinRarityThresholdConfig.Value = value;
+                    MinRarityThresholdConfig.ConfigFile.Save();
+                }
+            }
+        }
+
         void Awake()
         {
             // 1. Check for duplicates immediately
@@ -116,15 +131,13 @@ namespace BlackveilDpsMeter
             // 2. Set up the legitimate singleton instance
             Instance = this;
             _instanceExists = true;
-            
-            // Ensure this core plugin object survives scene loads if necessary
-            DontDestroyOnLoad(this.gameObject);
 
             // 3. Bind persistent config entries
             ShowDPSMeterConfig = Config.Bind("General", "ShowDPSMeter", false, "Show the DPS meter overlay.");
             ShowGroupDPSConfig = Config.Bind("General", "ShowGroupDPS", false, "Show the group DPS display.");
             ShowCombatInfoConfig = Config.Bind("General", "ShowCombatInfo", false, "Show additional combat information.");
             SelectedElementConfig = Config.Bind("General", "SelectedElement", "", "The currently selected element for combat information.");
+            MinRarityThresholdConfig = Config.Bind("Equipment", "MinRarityThreshold", 2, "Minimum rarity level for displayed equipment (0=Common, 1=Rare, 2=Epic, 3=Legendary, 4=Mythic).");
             PersistentUI._isVisible = ShowDPSMeter;
 
             // 4. Run initialization ONCE and ONLY once
@@ -132,6 +145,7 @@ namespace BlackveilDpsMeter
             harmony.PatchAll();
             HealthDamageLogPatch.Apply(harmony);
             SummonValidationPatches.Apply(harmony);
+            PermanentItemLabelPatch.Apply(harmony);
 
             // 5. Create your UI Bus
             var tracker = new GameObject("DPS_Global_Bus");

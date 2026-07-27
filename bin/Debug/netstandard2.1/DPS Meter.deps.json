@@ -19,6 +19,7 @@
           "Unity.TextMeshPro": "0.0.0.0",
           "UnityEngine.CoreModule": "0.0.0.0",
           "UnityEngine": "0.0.0.0",
+          "UnityEngine.IMGUIModule": "0.0.0.0",
           "UnityEngine.InputLegacyModule": "0.0.0.0",
           "UnityEngine.PhysicsModule": "0.0.0.0",
           "UnityEngine.TextRenderingModule": "0.0.0.0",
@@ -264,6 +265,14 @@
           }
         }
       },
+      "UnityEngine.IMGUIModule/0.0.0.0": {
+        "runtime": {
+          "UnityEngine.IMGUIModule.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
       "UnityEngine.InputLegacyModule/0.0.0.0": {
         "runtime": {
           "UnityEngine.InputLegacyModule.dll": {
@@ -491,14 +500,6 @@
       "UnityEngine.TerrainModule/0.0.0.0": {
         "runtime": {
           "UnityEngine.TerrainModule.dll": {
-            "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.0.0.0"
-          }
-        }
-      },
-      "UnityEngine.IMGUIModule/0.0.0.0": {
-        "runtime": {
-          "UnityEngine.IMGUIModule.dll": {
             "assemblyVersion": "0.0.0.0",
             "fileVersion": "0.0.0.0"
           }
@@ -1204,6 +1205,11 @@
       "serviceable": false,
       "sha512": ""
     },
+    "UnityEngine.IMGUIModule/0.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
     "UnityEngine.InputLegacyModule/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
@@ -1345,11 +1351,6 @@
       "sha512": ""
     },
     "UnityEngine.TerrainModule/0.0.0.0": {
-      "type": "reference",
-      "serviceable": false,
-      "sha512": ""
-    },
-    "UnityEngine.IMGUIModule/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""

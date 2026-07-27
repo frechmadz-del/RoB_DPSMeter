@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyDescriptionAttribute("DPS Meter for Raiders of Blackveil")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0548dd77c8aeb52b45f0caa34e2a44ce3003c919")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+79b06dac43e03d586c9c139cf0625cf8fe874894")]
 [assembly: System.Reflection.AssemblyProductAttribute("DPS Meter")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DPS Meter")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

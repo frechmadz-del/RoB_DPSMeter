@@ -12,6 +12,14 @@ using RaidersOfBlackveilMod;
 
 public class ModSettingsPage : SettingsBasePage
 {
+
+    public enum RarityThreshold
+            {
+                Epic = 2,
+                Legendary = 3,
+                Mythic = 4
+            }
+
     // Use existing settings page template to avoid missing VisualTreeAsset
     public ModSettingsPage(PageArgs args) : base("SettingsPage", args)
     {
@@ -177,6 +185,44 @@ public static class SettingsPage_Constructor_Patch
                 // If you need to trigger any logic immediately when changed, do it here.
             });
             modsContent.Add(modeDropdown);
+
+           
+
+            // 1. Generate dropdown choices directly from the enum names ("Epic", "Legendary", "Mythic")
+            List<string> modeChoices_rarity = new List<string>(Enum.GetNames(typeof(ModSettingsPage.RarityThreshold)));
+
+            // 2. Fall back to current enum string value, or default to Epic if null/out of bounds
+            string initialValue = Enum.GetName(typeof(ModSettingsPage.RarityThreshold), (ModSettingsPage.RarityThreshold)Plugin.MinRarityThreshold) 
+                                ?? ModSettingsPage.RarityThreshold.Epic.ToString();
+
+            DropdownField modeDropdown_rarity = new DropdownField("Select Rarity", modeChoices_rarity, initialValue);
+            modeDropdown_rarity.style.marginLeft = 6;
+            modeDropdown_rarity.style.marginTop = 8;
+            modeDropdown_rarity.style.width = 300; // Gives it clean structure inside UI content
+
+            var dropdownLabel_rarity = modeDropdown_rarity.Q<Label>();
+            if (dropdownLabel_rarity != null)
+            {
+                dropdownLabel_rarity.style.fontSize = 18;
+                dropdownLabel_rarity.style.color = Color.white;
+            }
+
+            modeDropdown_rarity.RegisterValueChangedCallback(evt =>
+            {
+
+                // Parse the chosen string ("Epic", "Legendary", "Mythic") to the enum
+                if (Enum.TryParse(evt.newValue, out ModSettingsPage.RarityThreshold selectedRarity))
+                {
+                    // Cast the enum back to its underlying integer (2, 3, or 4) and save to MinRarityThreshold
+                    int rarityIntValue = (int)selectedRarity;
+                    Plugin.MinRarityThresholdConfig.Value = rarityIntValue;
+
+                    Debug.Log($"[ModSettings] Rarity Threshold changed to: {selectedRarity} (int: {Plugin.MinRarityThresholdConfig.Value})");
+                }
+            });
+
+            modsContent.Add(modeDropdown_rarity);
+
 
             modsSection.Add(modsContent);
             generalContent.Add(modsSection);
