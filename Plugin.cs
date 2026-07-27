@@ -42,12 +42,14 @@ namespace BlackveilDpsMeter
         public bool fetchingActorID = false; // Debug toggle to enable ActorID fetching logs in the Update loop
         private bool mainSceneLoaded = false; // Flag to ensure we only reset the meter once per scene load
         public bool go_timer = false; // Debug toggle to enable combat timer logs in the Update loop
-
+        public static bool _isVisible = false;
+        
         public static ConfigEntry<bool> ShowDPSMeterConfig;
         public static ConfigEntry<bool> ShowGroupDPSConfig;
         public static ConfigEntry<bool> ShowCombatInfoConfig;
         public static ConfigEntry<string> SelectedElementConfig;
         public static ConfigEntry<int> MinRarityThresholdConfig; // Min rarity threshold for displayed equipment
+        public static ConfigEntry<string> SelectedRarityModeConfig; // Rarity mode for displayed equipment
 
         public static bool ShowDPSMeter
         {
@@ -118,6 +120,20 @@ namespace BlackveilDpsMeter
             }
         }
 
+        public static string SelectedRarityMode
+        {
+            get => SelectedRarityModeConfig?.Value ?? "off"; // Default to "off"
+            set
+            {
+                if (SelectedRarityModeConfig != null)
+                {
+                    SelectedRarityModeConfig.Value = value;
+                    SelectedRarityModeConfig.ConfigFile.Save();
+                }
+            }
+        }
+
+
         void Awake()
         {
             // 1. Check for duplicates immediately
@@ -132,13 +148,17 @@ namespace BlackveilDpsMeter
             Instance = this;
             _instanceExists = true;
 
+            // Ensure this plugin GameObject stays active across scene transitions
+            DontDestroyOnLoad(gameObject);
+
             // 3. Bind persistent config entries
             ShowDPSMeterConfig = Config.Bind("General", "ShowDPSMeter", false, "Show the DPS meter overlay.");
             ShowGroupDPSConfig = Config.Bind("General", "ShowGroupDPS", false, "Show the group DPS display.");
             ShowCombatInfoConfig = Config.Bind("General", "ShowCombatInfo", false, "Show additional combat information.");
             SelectedElementConfig = Config.Bind("General", "SelectedElement", "", "The currently selected element for combat information.");
-            MinRarityThresholdConfig = Config.Bind("Equipment", "MinRarityThreshold", 2, "Minimum rarity level for displayed equipment (0=Common, 1=Rare, 2=Epic, 3=Legendary, 4=Mythic).");
-            PersistentUI._isVisible = ShowDPSMeter;
+            MinRarityThresholdConfig = Config.Bind("Equipment", "MinRarityThreshold", 2, "Minimum rarity level for displayed equipment (2=Epic, 3=Legendary, 4=Mythic).");
+            SelectedRarityModeConfig = Config.Bind("Equipment", "RarityMode", "off", "Rarity mode for displayed equipment");
+            _isVisible = ShowDPSMeter;
 
             // 4. Run initialization ONCE and ONLY once
             var harmony = new Harmony("com.gemini.dpsmeter");
@@ -154,12 +174,49 @@ namespace BlackveilDpsMeter
             tracker.AddComponent<PersistentUI>();
             tracker.AddComponent<CombatInfoModule>();
             tracker.AddComponent<GroupDamageMeter>();
+            tracker.AddComponent<HotkeyRunner>();
 
             // 5. Safe event subscription
             SceneManager.sceneLoaded -= OnSceneLoaded;
             SceneManager.sceneLoaded += OnSceneLoaded;
 
             Logger.LogInfo("Mod Injected: Hidden Bus & Harmony Patches Active.");
+        }
+        private class HotkeyRunner : MonoBehaviour
+        {   
+            private bool _isKeyHeld = false; // Our custom debounce
+            private void Update()
+            {   
+                var keyboard = UnityEngine.InputSystem.Keyboard.current;
+                bool ui_pressed = keyboard.pKey.isPressed;
+
+                if (keyboard.oKey.isPressed)
+                {
+                    Plugin.Instance.ResetMeter();
+                }
+                
+                if (ui_pressed && !_isKeyHeld )
+                {   
+                    Debug.Log("[DPS] P Pressed: Toggling UI Visibility");
+                    _isKeyHeld = true;
+                    Debug.Log($"[DPS] Current Visibility: {Plugin._isVisible} | Toggling to: {!Plugin._isVisible} | settings ShowDPSMeter: {Plugin.ShowDPSMeter}");
+                    
+                    Plugin.Instance.ToggleUIVisibility();
+                    
+                }
+                else if (!ui_pressed)
+                {
+                    _isKeyHeld = false; // Unlock when user lets go of P
+                }
+            }
+        }
+        public void ToggleUIVisibility()
+        {
+            _isVisible = !_isVisible;
+            
+            
+            // Physical feedback in the editor console
+            Debug.Log($"[UI] Visibility set to: {_isVisible}");
         }
         public void ResetMeter()
         {
@@ -259,8 +316,8 @@ namespace BlackveilDpsMeter
         private GameObject _panelObj;
         private float dpsupdateTime = 0f;
         public static Canvas _targetCanvas;
-        public static bool _isVisible = false; // Start hidden, toggle with F11
-        private bool _isKeyHeld = false; // Our custom debounce
+        
+        
 
         void Start()
         {
@@ -356,7 +413,7 @@ namespace BlackveilDpsMeter
             _uiText.enableWordWrapping = false;
 
             _targetCanvas = _canvasObj.GetComponent<Canvas>();
-            _targetCanvas.enabled = _isVisible; // Restore overlay visibility from config
+            _targetCanvas.enabled = Plugin._isVisible; // Restore overlay visibility from config
 
         }
         
@@ -387,6 +444,9 @@ namespace BlackveilDpsMeter
                     }
                 }
             }
+
+            
+            _targetCanvas.enabled = Plugin.ShowDPSMeter && Plugin._isVisible; // Ensure canvas visibility matches both config and toggle state
 
             if (Time.time >= _nextDebugTime)
             {
@@ -485,38 +545,10 @@ namespace BlackveilDpsMeter
                     // We don't recalculate DPS here, so it stays frozen at the last value
                 }
             }
-            var keyboard = UnityEngine.InputSystem.Keyboard.current;
-            bool ui_pressed = keyboard.pKey.isPressed;
-
-            if (keyboard.oKey.isPressed)
-            {
-                Plugin.Instance.ResetMeter();
-            }
             
-            if (ui_pressed && !_isKeyHeld )
-            {   
-                Debug.Log("[DPS] P Pressed: Toggling UI Visibility");
-                _isKeyHeld = true;
-                Debug.Log($"[DPS] Current Visibility: {_isVisible} | Toggling to: {!_isVisible} | settings ShowDPSMeter: {Plugin.ShowDPSMeter}");
-                if (Plugin.ShowDPSMeter)
-                {
-                ToggleUIVisibility();
-                }
-            }
-            else if (!ui_pressed)
-            {
-                _isKeyHeld = false; // Unlock when user lets go of P
-            }
         }
  
-        public void ToggleUIVisibility()
-        {
-            _isVisible = !_isVisible;
-            _targetCanvas.enabled = _isVisible;
-            
-            // Physical feedback in the editor console
-            Debug.Log($"[UI] Visibility set to: {_isVisible}");
-        }
+        
         private void PrintActivePlayersDebug()
         {
             var pm = RR.PlayerManager.Instance;

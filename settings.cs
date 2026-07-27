@@ -82,11 +82,11 @@ public static class SettingsPage_Constructor_Patch
 
             VisualElement modsSection = new VisualElement();
             modsSection.name = "ModsSection";
-            modsSection.style.marginTop = 8;
+            modsSection.style.marginTop = 25;
 
-            Label modsHeader = new Label("Mods");
+            Label modsHeader = new Label("DPS Meter Mod Settings");
             modsHeader.style.fontSize = 24;
-            modsHeader.style.color = Color.yellow;
+            modsHeader.style.color = new Color(0.702f, 0.639f, 0.471f, 1.0f);
             modsHeader.style.unityFontStyleAndWeight = FontStyle.Bold;
             modsHeader.style.marginLeft = 6;
             modsHeader.style.marginBottom = 8;
@@ -98,7 +98,7 @@ public static class SettingsPage_Constructor_Patch
             modsContent.style.marginTop = 6;
 
             // --- Toggle: Enable DPS Meter ---
-            Toggle dpsToggle = new Toggle("Enable DPS Meter");
+            Toggle dpsToggle = new Toggle("DPS Meter");
             dpsToggle.value = Plugin.ShowDPSMeter;
             dpsToggle.style.marginLeft = 6;
             dpsToggle.style.marginTop = 4;
@@ -111,7 +111,6 @@ public static class SettingsPage_Constructor_Patch
             dpsToggle.RegisterValueChangedCallback(evt =>
             {
                 Plugin.ShowDPSMeter = evt.newValue; 
-                PersistentUI._isVisible = evt.newValue;
                 if (PersistentUI._targetCanvas != null)
                     PersistentUI._targetCanvas.enabled = evt.newValue;
             });
@@ -139,6 +138,31 @@ public static class SettingsPage_Constructor_Patch
             });
             modsContent.Add(combatInfoToggle);
 
+            // --- Dropdown: Single Choice Menu ---
+            List<string> modeChoices_element = new List<string> { "", "Shock", "Burn", "Chill", "Poison", "Bleed", "Fury", "Curse", "Summon" , "Bless" }; // Add more elements as needed
+            
+            // NOTE: Replace "Plugin.SelectedElement" with your actual backing config field/property!
+            DropdownField modeDropdown = new DropdownField("Select element for Combat info tracking", modeChoices_element, Plugin.SelectedElement ?? "");
+            modeDropdown.style.marginLeft = 6;
+            modeDropdown.style.marginTop = 8;
+            modeDropdown.style.width = 500; // Gives it clean structure inside UI content
+
+            var dropdownLabel = modeDropdown.Q<Label>();
+            if (dropdownLabel != null)
+            {
+                dropdownLabel.style.fontSize = 18;
+                dropdownLabel.style.color = Color.white;
+            }
+            
+            modeDropdown.RegisterValueChangedCallback(evt =>
+            {
+                Plugin.SelectedElement = evt.newValue;
+                Debug.Log($"[ModSettings] Selected Element changed to: {evt.newValue}");
+                
+                // If you need to trigger any logic immediately when changed, do it here.
+            });
+            modsContent.Add(modeDropdown);
+
             // --- Toggle: Group DPS ---
             Toggle groupDpsToggle = new Toggle("Group DPS");
             groupDpsToggle.value = Plugin.ShowGroupDPS;
@@ -161,32 +185,46 @@ public static class SettingsPage_Constructor_Patch
             });
             modsContent.Add(groupDpsToggle);
 
-            // --- Dropdown: Single Choice Menu ---
-            List<string> modeChoices = new List<string> { "", "Shock", "Burn", "Chill", "Poison", "Bleed", "Fury", "Curse", "Summon" , "Bless" }; // Add more elements as needed
+            VisualElement modsSection_Loot = new VisualElement();
+            modsSection_Loot.name = "ModsSection_Loot";
+            modsSection_Loot.style.marginTop = 25;
+
+            Label modsHeader_loot = new Label("Lootfilter Mod Settings");
+            modsHeader_loot.style.fontSize = 24;
+            modsHeader_loot.style.color = new Color(0.702f, 0.639f, 0.471f, 1.0f);
+            modsHeader_loot.style.unityFontStyleAndWeight = FontStyle.Bold;
+            modsHeader_loot.style.marginLeft = 6;
+            modsHeader_loot.style.marginBottom = 8;
+            modsSection_Loot.Add(modsHeader_loot);
+
+            ScrollView modsContent_Loot = new ScrollView();
+            modsContent_Loot.name = "ModsContent";
+            modsContent_Loot.style.flexGrow = 1;
+            modsContent_Loot.style.marginTop = 6;
+
+            List<string> Choices_rarity_mode = new List<string> { "off", "exclusive", "equal and above"}; 
             
             // NOTE: Replace "Plugin.SelectedElement" with your actual backing config field/property!
-            DropdownField modeDropdown = new DropdownField("Select Mode", modeChoices, Plugin.SelectedElement ?? "");
-            modeDropdown.style.marginLeft = 6;
-            modeDropdown.style.marginTop = 8;
-            modeDropdown.style.width = 300; // Gives it clean structure inside UI content
+            DropdownField Dropdown_rarity_mode = new DropdownField("Lootfilter", Choices_rarity_mode, Plugin.SelectedRarityMode ?? "off");
+            Dropdown_rarity_mode.style.marginLeft = 6;
+            Dropdown_rarity_mode.style.marginTop = 8;
+            Dropdown_rarity_mode.style.width = 300; // Gives it clean structure inside UI content
 
-            var dropdownLabel = modeDropdown.Q<Label>();
-            if (dropdownLabel != null)
+            var dropdownLabel_rarity_mode = Dropdown_rarity_mode.Q<Label>();
+            if (dropdownLabel_rarity_mode != null)
             {
-                dropdownLabel.style.fontSize = 18;
-                dropdownLabel.style.color = Color.white;
+                dropdownLabel_rarity_mode.style.fontSize = 18;
+                dropdownLabel_rarity_mode.style.color = Color.white;
             }
             
-            modeDropdown.RegisterValueChangedCallback(evt =>
+            Dropdown_rarity_mode.RegisterValueChangedCallback(evt =>
             {
-                Plugin.SelectedElement = evt.newValue;
+                Plugin.SelectedRarityMode = evt.newValue;
                 Debug.Log($"[ModSettings] Selected Element changed to: {evt.newValue}");
                 
                 // If you need to trigger any logic immediately when changed, do it here.
             });
-            modsContent.Add(modeDropdown);
-
-           
+            modsContent_Loot.Add(Dropdown_rarity_mode);
 
             // 1. Generate dropdown choices directly from the enum names ("Epic", "Legendary", "Mythic")
             List<string> modeChoices_rarity = new List<string>(Enum.GetNames(typeof(ModSettingsPage.RarityThreshold)));
@@ -221,11 +259,15 @@ public static class SettingsPage_Constructor_Patch
                 }
             });
 
-            modsContent.Add(modeDropdown_rarity);
+            modsContent_Loot.Add(modeDropdown_rarity);
 
-
+            // DPSMeter Mod Settings section
             modsSection.Add(modsContent);
             generalContent.Add(modsSection);
+
+            // Lootfilter Mod Settings section
+            modsSection_Loot.Add(modsContent_Loot);
+            generalContent.Add(modsSection_Loot);
 
             Debug.Log("[ModSettings] Successfully patched Mod Settings page into settings menu!");
         }

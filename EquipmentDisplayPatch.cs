@@ -70,10 +70,16 @@ namespace BlackveilDpsMeter
                 int normalizedRarity = NormalizeRarity(rawRarity);
                 int minThreshold = Plugin.MinRarityThreshold;
 
-                if (normalizedRarity >= minThreshold)
+                if (normalizedRarity >= minThreshold && Plugin.SelectedRarityMode == "equal and above")
                 {
                     CreateWorldLabel(__instance);
                 }
+                else if (normalizedRarity == minThreshold && Plugin.SelectedRarityMode == "exclusive")
+                {
+                    CreateWorldLabel(__instance);
+                }
+                // Plugin.SelectedRarityMode == "off" is off
+
             }
             catch (Exception ex)
             {

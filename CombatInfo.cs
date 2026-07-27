@@ -124,7 +124,7 @@ namespace RaidersOfBlackveilMod
         private void Update()
         {
             // 1. Grab the game's current UI visibility state (Assumes this is a static property)
-            bool gameUIIsVisible = PersistentUI._isVisible; 
+            bool gameUIIsVisible = Plugin._isVisible; 
 
             // 2. If the game's UI visibility state flipped, update immediately!
             if (gameUIIsVisible != _lastPersistentUIVisibility)
@@ -186,7 +186,7 @@ namespace RaidersOfBlackveilMod
         {
             if (_canvasObj != null)
             {
-                _canvasObj.SetActive(Plugin.ShowCombatInfo && PersistentUI._isVisible);
+                _canvasObj.SetActive(Plugin.ShowCombatInfo && Plugin._isVisible);
             }
         }
 
