@@ -60,14 +60,17 @@ namespace BlackveilDpsMeter
         [HarmonyPostfix]
         private static void Postfix_OnEquipmentProcessed(EquipmentPickup __instance)
         {
-            if (__instance == null) return;
+            if (__instance == null ) return;
 
             try
             {
-                int rarityLevel = (int)__instance.Equipment.RarityLevel;
+                int rawRarity = Convert.ToInt32(__instance.Equipment.RarityLevel);
+                
+                // Normalize Uncommon (5) so it doesn't bypass higher thresholds
+                int normalizedRarity = NormalizeRarity(rawRarity);
                 int minThreshold = Plugin.MinRarityThreshold;
 
-                if (rarityLevel >= minThreshold)
+                if (normalizedRarity >= minThreshold)
                 {
                     CreateWorldLabel(__instance);
                 }
@@ -76,6 +79,13 @@ namespace BlackveilDpsMeter
             {
                 Debug.LogWarning($"[ItemLabels] Exception in Postfix_OnEquipmentProcessed: {ex.Message}");
             }
+        }
+
+        private static int NormalizeRarity(int rawRarity)
+        {
+            // Common: 0, Rare: 1, Epic: 2, Legendary: 3, Mythic: 4, Uncommon: 5 -> mapped to 1
+            if (rawRarity == 5) return 1; 
+            return rawRarity;
         }
 
         [HarmonyPostfix]
@@ -107,8 +117,10 @@ namespace BlackveilDpsMeter
         private EquipmentPickup _pickup;
         private Camera _mainCamera;
         private string _labelText;
-        private Color _labelColor;
+        private Color _textColor;
+        private Color _backgroundColor;
         private GUIStyle _style;
+        private static Texture2D _bgTexture;
 
         public void Initialize(EquipmentPickup pickup)
         {
@@ -139,34 +151,60 @@ namespace BlackveilDpsMeter
 
             if (isUber)
             {
-                formattedName += " ✦ ";
+                formattedName += " ✦";
             }
 
             if (descriptor.IsLucky)
             {
-                formattedName += " ♣ ";
+                formattedName += " ♣";
+            }
+
+            if (_bgTexture == null)
+            {
+                _bgTexture = MakeSolidTexture(1, 1, Color.white);
             }
 
             _labelText = formattedName;
 
             // Safe rarity color conversion
             int rarityValue = (int)pickup.Equipment.RarityLevel;
-            _labelColor = rarityValue switch
+            switch (rarityValue)
             {
-                1 => new Color(0f, 0.44f, 0.87f),    // Rare (Blue)
-                2 => new Color(0.64f, 0.21f, 0.93f), // Epic (Purple)
-                3 => new Color(1f, 0.5f, 0f),       // Legendary (Orange)
-                4 => new Color(1f, 0f, 0f),      // Mythic (Red)
-                _ => Color.white
-            };
+                case 2: // Epic (Purple)
+                    _textColor = new Color(0.78f, 0.58f, 0.95f);       // Soft purple text
+                    _backgroundColor = new Color(0.18f, 0.16f, 0.24f, 0.9f); // Dark purple tint
+                    break;
+                case 3: // Legendary (Gold/Orange)
+                    _textColor = new Color(1.0f, 0.75f, 0.28f);       // Gold/Orange text
+                    _backgroundColor = new Color(0.22f, 0.18f, 0.12f, 0.9f); // Dark gold tint
+                    break;
+                case 4: // Mythic (Red/Pink)
+                    _textColor = new Color(0.95f, 0.45f, 0.52f);       // Soft red text
+                    _backgroundColor = new Color(0.24f, 0.14f, 0.16f, 0.9f); // Dark red tint
+                    break;
+                default: // Default / White
+                    _textColor = Color.white;
+                    _backgroundColor = new Color(0.12f, 0.12f, 0.12f, 0.85f);
+                    break;
+            }
 
             _style = new GUIStyle
             {
                 fontSize = 16,
                 fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleCenter
+                alignment = TextAnchor.MiddleCenter,
+                richText = true
             };
-            _style.normal.textColor = _labelColor;
+            _style.normal.textColor = _textColor;
+        }
+        private Texture2D MakeSolidTexture(int width, int height, Color color)
+        {
+            Color[] pix = new Color[width * height];
+            for (int i = 0; i < pix.Length; ++i) pix[i] = color;
+            Texture2D result = new Texture2D(width, height);
+            result.SetPixels(pix);
+            result.Apply();
+            return result;
         }
 
         private void OnGUI()
@@ -180,17 +218,41 @@ namespace BlackveilDpsMeter
 
             if (screenPos.z > 0)
             {
-                float rectWidth = 300f;
-                float rectHeight = 35f;
-                Rect rect = new Rect(screenPos.x - (rectWidth / 2f), Screen.height - screenPos.y - (rectHeight / 2f), rectWidth, rectHeight);
+                // Calculate dynamic width based on exact text length + padding
+                Vector2 textSize = _style.CalcSize(new GUIContent(_labelText));
+                
+                float paddingX = 20f;
+                float paddingY = 8f;
 
-                // Text shadow outline for readability
+                float boxWidth = textSize.x + paddingX ;
+                float boxHeight = textSize.y + paddingY;
+
+                float boxX = screenPos.x - (boxWidth / 2f);
+                float boxY = Screen.height - screenPos.y - (boxHeight / 2f);
+
+                Rect bgRect = new Rect(boxX, boxY, boxWidth, boxHeight);
+
+                // 1. Draw dynamically sized dark background box
+                Color savedGUIColor = GUI.color;
+                GUI.color = _backgroundColor;
+                GUI.DrawTexture(bgRect, _bgTexture);
+                GUI.color = savedGUIColor;
+
+                // 2. Draw Text centered inside background box
+
+                Rect textRect = new Rect(boxX, boxY, boxWidth, boxHeight);
+
+                // 3. Draw Dark Grey Text Outline (2px in all 4 directions)
                 GUIStyle outlineStyle = new GUIStyle(_style);
-                outlineStyle.normal.textColor = Color.black;
+                outlineStyle.normal.textColor = new Color(0.15f, 0.15f, 0.15f, 0.9f); // Dark Grey Outline
 
-                GUI.Label(new Rect(rect.x + 1, rect.y + 1, rect.width, rect.height), _labelText, outlineStyle);
-                GUI.Label(new Rect(rect.x - 1, rect.y - 1, rect.width, rect.height), _labelText, outlineStyle);
-                GUI.Label(rect, _labelText, _style);
+                GUI.Label(new Rect(textRect.x - 2, textRect.y, textRect.width, textRect.height), _labelText, outlineStyle);
+                GUI.Label(new Rect(textRect.x + 2, textRect.y, textRect.width, textRect.height), _labelText, outlineStyle);
+                GUI.Label(new Rect(textRect.x, textRect.y - 2, textRect.width, textRect.height), _labelText, outlineStyle);
+                GUI.Label(new Rect(textRect.x, textRect.y + 2, textRect.width, textRect.height), _labelText, outlineStyle);
+                
+                // Draw Main Text
+                GUI.Label(textRect, _labelText, _style);
             }
         }
     }
