@@ -295,10 +295,14 @@ namespace BlackveilDpsMeter
         private void OnGUI()
         {
             if (_pickup == null || !_pickup.gameObject.activeInHierarchy) return;
+            // 1. Check if the pause menu or any overlay page is active
+            if (RR.UI.UISystem.UIManager.Instance != null && RR.UI.UISystem.UIManager.Instance.IsMainLayerPageOpen)
+            {
+                return;
+            }
+
             if (_mainCamera == null) _mainCamera = Camera.main;
             if (!this.enabled || _mainCamera == null) return;
-
-            GUI.depth = 100;
 
             Vector3 worldPos = transform.position + new Vector3(0, 1.8f, 0);
             Vector3 screenPos = _mainCamera.WorldToScreenPoint(worldPos);
