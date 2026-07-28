@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 using RR.UI.Controls;
+using System.Linq;
 
 namespace BlackveilDpsMeter
 {
@@ -127,10 +128,25 @@ namespace BlackveilDpsMeter
         private Color _backgroundColor;
         private GUIStyle _style;
         private static Texture2D _bgTexture;
+        private Texture2D _uberTexture;
+        private Texture2D _luckyTexture;
+        private Texture2D _chaosTexture;
+        private bool _isUber;
+        private bool _isLucky;
+        private bool _isChaos;
+        
 
         public void Initialize(EquipmentPickup pickup)
         {
             _pickup = pickup;
+
+            // 1. Check if the pickup allows the local player to interact with it
+            // Hide/disable the label if this item is not meant for the local player
+            if (!IsLocalPlayerAllowedToPickup(pickup))
+            {
+                this.enabled = false;
+                return;
+            }
             _mainCamera = Camera.main;
 
             // Fetch the full descriptor to extract localized Name and special statuses
@@ -139,30 +155,69 @@ namespace BlackveilDpsMeter
             LocLabel locLabel = new LocLabel();
             descriptor.SetNameToLabel(locLabel);
 
+            if (_uberTexture == null)
+            {
+                // Try loading directly from the Resources folder
+                _uberTexture = Resources.FindObjectsOfTypeAll<Texture2D>()
+                            .FirstOrDefault(t => t.name.Equals("StatType_Uber", StringComparison.OrdinalIgnoreCase));
+                if (_uberTexture == null)
+                {   
+                    
+                    Debug.LogWarning("[ItemLabels] Could not load 'StatType_Uber' texture from Resources. Uber icon will not be displayed.");
+                }
+                
+            }
+            if (_luckyTexture == null)
+            {
+                // Try loading directly from the Resources folder
+                _luckyTexture = Resources.FindObjectsOfTypeAll<Texture2D>()
+                            .FirstOrDefault(t => t.name.Equals("Bonus_Lucky", StringComparison.OrdinalIgnoreCase));
+                if (_luckyTexture == null)
+                {   
+                    
+                    Debug.LogWarning("[ItemLabels] Could not load 'Bonus_Lucky' texture from Resources. Uber icon will not be displayed.");
+                }
+                
+            }
+            if (_chaosTexture == null)
+            {
+                // Try loading directly from the Resources folder
+                _chaosTexture = Resources.FindObjectsOfTypeAll<Texture2D>()
+                            .FirstOrDefault(t => t.name.Equals("StatType_Chaos", StringComparison.OrdinalIgnoreCase));
+                if (_chaosTexture == null)
+                {   
+                    
+                    Debug.LogWarning("[ItemLabels] Could not load 'StatType_Chaos' texture from Resources. Chaos icon will not be displayed.");
+                }
+                
+            }
+
             // Get localized full name from the label (falls back to descriptor.Name if text is null)
             string formattedName = !string.IsNullOrEmpty(locLabel.text) ? locLabel.text : descriptor.Name;
 
-            bool isUber = false;
+            _isUber = false;
             if (descriptor.Properties != null)
             {
                 for (int i = 0; i < descriptor.Properties.Length; i++)
                 {
                     if (descriptor.Properties[i].IsUber)
                     {
-                        isUber = true;
+                        _isUber = true;
                         break;
                     }
                 }
             }
 
-            if (isUber)
-            {
-                formattedName += " ✦";
-            }
-
+            _isLucky = false;
             if (descriptor.IsLucky)
             {
-                formattedName += " ♣";
+                _isLucky = true;
+            }
+            
+            _isChaos = false;
+            if (descriptor.IsChaos)
+            {
+                _isChaos = true;
             }
 
             if (_bgTexture == null)
@@ -198,10 +253,34 @@ namespace BlackveilDpsMeter
             {
                 fontSize = 16,
                 fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleCenter,
+                alignment = TextAnchor.MiddleLeft,
                 richText = true
             };
             _style.normal.textColor = _textColor;
+        }
+
+        public bool IsLocalPlayerAllowedToPickup(EquipmentPickup pickup)
+        {
+            if (pickup == null) return false;
+
+            // 1. Ensure the local player reference exists
+            var localPlayer = RR.PlayerManager.Instance?.LocalPlayer;
+            if (localPlayer == null) return false;
+
+            // 2. Check PlayerFilter / Slot Index ownership
+            if (pickup.PlayerFilter != RR.Game.Perk.PlayerFilter.AnyPlayer)
+            {
+                int localSlot = localPlayer.SlotIndex;
+                int allowedSlot = (int)pickup.PlayerFilter;
+
+                // If the item is locked to a specific slot and we are not that slot, return false
+                if (localSlot != allowedSlot)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
         private Texture2D MakeSolidTexture(int width, int height, Color color)
         {
@@ -217,20 +296,35 @@ namespace BlackveilDpsMeter
         {
             if (_pickup == null || !_pickup.gameObject.activeInHierarchy) return;
             if (_mainCamera == null) _mainCamera = Camera.main;
-            if (_mainCamera == null) return;
+            if (!this.enabled || _mainCamera == null) return;
+
+            GUI.depth = 100;
 
             Vector3 worldPos = transform.position + new Vector3(0, 1.8f, 0);
             Vector3 screenPos = _mainCamera.WorldToScreenPoint(worldPos);
 
             if (screenPos.z > 0)
             {
-                // Calculate dynamic width based on exact text length + padding
-                Vector2 textSize = _style.CalcSize(new GUIContent(_labelText));
-                
-                float paddingX = 20f;
-                float paddingY = 8f;
+                // Force Left alignment so text doesn't auto-center inside its bounding box
+                _style.alignment = TextAnchor.MiddleLeft;
 
-                float boxWidth = textSize.x + paddingX ;
+                // Measure exact pixel dimensions of the text string
+                Vector2 textSize = _style.CalcSize(new GUIContent(_labelText));
+
+                float paddingX = 16f;      // Horizontal padding around all content
+                float paddingY = 8f;       // Vertical padding around all content
+                float iconSize = 16f;      // Width/Height of the sprites
+                float iconSpacing = 2f;    // Gap between text and sprites / between sprites
+
+                // Calculate total content width dynamically based on active flags
+                float totalIconWidth = 0f;
+                if (_isUber) totalIconWidth += iconSpacing + iconSize;
+                if (_isLucky) totalIconWidth += iconSize;
+                if (_isChaos) totalIconWidth += iconSpacing + iconSize;
+
+                float contentWidth = textSize.x + totalIconWidth;
+
+                float boxWidth = contentWidth + paddingX;
                 float boxHeight = textSize.y + paddingY;
 
                 float boxX = screenPos.x - (boxWidth / 2f);
@@ -238,27 +332,65 @@ namespace BlackveilDpsMeter
 
                 Rect bgRect = new Rect(boxX, boxY, boxWidth, boxHeight);
 
-                // 1. Draw dynamically sized dark background box
+                // 1. Draw background box
                 Color savedGUIColor = GUI.color;
                 GUI.color = _backgroundColor;
                 GUI.DrawTexture(bgRect, _bgTexture);
                 GUI.color = savedGUIColor;
 
-                // 2. Draw Text centered inside background box
+                // 2. Position text at the start of the content area inside padding
+                float contentStartX = boxX + (paddingX / 2f);
+                Rect textRect = new Rect(contentStartX, boxY, textSize.x, boxHeight);
 
-                Rect textRect = new Rect(boxX, boxY, boxWidth, boxHeight);
-
-                // 3. Draw Dark Grey Text Outline (2px in all 4 directions)
-                GUIStyle outlineStyle = new GUIStyle(_style);
-                outlineStyle.normal.textColor = new Color(0.15f, 0.15f, 0.15f, 0.9f); // Dark Grey Outline
+                // 3. Draw text outlines
+                GUIStyle outlineStyle = new GUIStyle(_style)
+                {
+                    alignment = TextAnchor.MiddleLeft
+                };
+                outlineStyle.normal.textColor = new Color(0.15f, 0.15f, 0.15f, 0.9f);
 
                 GUI.Label(new Rect(textRect.x - 2, textRect.y, textRect.width, textRect.height), _labelText, outlineStyle);
                 GUI.Label(new Rect(textRect.x + 2, textRect.y, textRect.width, textRect.height), _labelText, outlineStyle);
                 GUI.Label(new Rect(textRect.x, textRect.y - 2, textRect.width, textRect.height), _labelText, outlineStyle);
                 GUI.Label(new Rect(textRect.x, textRect.y + 2, textRect.width, textRect.height), _labelText, outlineStyle);
-                
-                // Draw Main Text
+
+                // Draw main item text
                 GUI.Label(textRect, _labelText, _style);
+
+                // Track the current X position for placing icons right after the text
+                float currentIconX = textRect.xMax + iconSpacing;
+                float iconY = boxY + (boxHeight - iconSize) / 2f;
+
+                // 4. Draw Uber icon if applicable
+                if (_isUber)
+                {
+                    if (_uberTexture != null)
+                    {
+                        Rect uberRect = new Rect(currentIconX, iconY, iconSize, iconSize);
+                        GUI.DrawTexture(uberRect, _uberTexture, ScaleMode.ScaleToFit, alphaBlend: true);
+                        currentIconX += iconSize; // Advance X for the next icon
+                    }
+                }
+
+                // 5. Draw Lucky icon if applicable
+                if (_isLucky)
+                {
+                    if (_luckyTexture != null)
+                    {
+                        Rect luckyRect = new Rect(currentIconX, iconY-3, iconSize+6, iconSize+6);
+                        GUI.DrawTexture(luckyRect, _luckyTexture, ScaleMode.ScaleToFit, alphaBlend: true);
+                        currentIconX += iconSize+6;
+                    }
+                }
+                // 5. Draw Lucky icon if applicable
+                if (_isChaos)
+                {
+                    if (_chaosTexture!= null)
+                    {
+                        Rect chaosRect = new Rect(currentIconX, iconY, iconSize, iconSize);
+                        GUI.DrawTexture(chaosRect, _chaosTexture, ScaleMode.ScaleToFit, alphaBlend: true);
+                    }
+                }
             }
         }
     }

@@ -111,9 +111,6 @@ F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMETER\bin\Debug\netstandard2.1\DPS Meter
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMETER\bin\Debug\netstandard2.1\DPS Meter.pdb
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMETER\obj\Debug\netstandard2.1\DPS Meter.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMETER\obj\Debug\netstandard2.1\DPS Meter.pdb
-F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\DPS Meter.deps.json
-F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\DPS Meter.dll
-F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\DPS Meter.pdb
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Assembly-CSharp.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\BepInEx.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Fusion.Runtime.dll
@@ -223,10 +220,13 @@ F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\obj\Debug\netstandard2.1\RoB_DPS
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\obj\Debug\netstandard2.1\RoB_DPSMETER.csproj.CoreCompileInputs.cache
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\obj\Debug\netstandard2.1\RoB_DPSMETER.sourcelink.json
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\obj\Debug\netstandard2.1\RoB_DPSM.5D077A0E.Up2Date
-F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\obj\Debug\netstandard2.1\DPS Meter.dll
-F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\obj\Debug\netstandard2.1\DPS Meter.pdb
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Unity.Splines.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UniTask.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Backtrace.Unity.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Unity.Collections.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Unity.Collections.LowLevel.ILSupport.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\QoL Mod.deps.json
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\QoL Mod.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\QoL Mod.pdb
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\obj\Debug\netstandard2.1\QoL Mod.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\obj\Debug\netstandard2.1\QoL Mod.pdb

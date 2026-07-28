@@ -28,7 +28,7 @@ using RaidersOfBlackveilMod;
 
 namespace BlackveilDpsMeter
 {
-    [BepInPlugin("com.gemini.dpsmeter", "RoB Persistent DPS", "1.0.0")]
+    [BepInPlugin("vibecoded_mod_1", "RoB_QoL_Mod", "1.0.0")]
     public class Plugin : BaseUnityPlugin
     {
         public static Plugin Instance;
@@ -42,7 +42,7 @@ namespace BlackveilDpsMeter
         public bool fetchingActorID = false; // Debug toggle to enable ActorID fetching logs in the Update loop
         private bool mainSceneLoaded = false; // Flag to ensure we only reset the meter once per scene load
         public bool go_timer = false; // Debug toggle to enable combat timer logs in the Update loop
-        public static bool _isVisible = false;
+        public static bool _isVisible = true;
         
         public static ConfigEntry<bool> ShowDPSMeterConfig;
         public static ConfigEntry<bool> ShowGroupDPSConfig;
@@ -158,7 +158,6 @@ namespace BlackveilDpsMeter
             SelectedElementConfig = Config.Bind("General", "SelectedElement", "", "The currently selected element for combat information.");
             MinRarityThresholdConfig = Config.Bind("Equipment", "MinRarityThreshold", 2, "Minimum rarity level for displayed equipment (2=Epic, 3=Legendary, 4=Mythic).");
             SelectedRarityModeConfig = Config.Bind("Equipment", "RarityMode", "off", "Rarity mode for displayed equipment");
-            _isVisible = ShowDPSMeter;
 
             // 4. Run initialization ONCE and ONLY once
             var harmony = new Harmony("com.gemini.dpsmeter");

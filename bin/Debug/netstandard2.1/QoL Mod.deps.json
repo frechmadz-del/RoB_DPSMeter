@@ -7,7 +7,7 @@
   "targets": {
     ".NETStandard,Version=v2.1": {},
     ".NETStandard,Version=v2.1/": {
-      "DPS Meter/1.0.0": {
+      "QoL Mod/1.0.0": {
         "dependencies": {
           "HarmonyX": "2.16.0",
           "MonoMod.Backports": "1.1.2",
@@ -28,7 +28,7 @@
           "UnityEngine.UIModule": "0.0.0.0"
         },
         "runtime": {
-          "DPS Meter.dll": {}
+          "QoL Mod.dll": {}
         }
       },
       "HarmonyX/2.16.0": {
@@ -1060,7 +1060,7 @@
     }
   },
   "libraries": {
-    "DPS Meter/1.0.0": {
+    "QoL Mod/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

@@ -62,8 +62,8 @@ namespace RaidersOfBlackveilMod
             panelRect.anchorMin = new Vector2(1, 0);
             panelRect.anchorMax = new Vector2(1, 0);
             panelRect.pivot = new Vector2(1, 0);
-            panelRect.anchoredPosition = new Vector2(-10, 190); 
-            panelRect.sizeDelta = new Vector2(190, 140); // Width x Height
+            panelRect.anchoredPosition = new Vector2(-10, 210); 
+            panelRect.sizeDelta = new Vector2(190, 120); // Width x Height
 
             var outline = _panelObj.AddComponent<Outline>();
             outline.effectColor = new Color(0.15f, 0.1f, 0.05f, 1f);
