@@ -128,12 +128,51 @@ namespace BlackveilDpsMeter
         private Color _backgroundColor;
         private GUIStyle _style;
         private static Texture2D _bgTexture;
-        private Texture2D _uberTexture;
-        private Texture2D _luckyTexture;
-        private Texture2D _chaosTexture;
+        private static Texture2D _uberTexture;
+        private static Texture2D _luckyTexture;
+        private static Texture2D _chaosTexture;
+        private static bool _texturesLoaded = false;
         private bool _isUber;
         private bool _isLucky;
         private bool _isChaos;
+
+        
+private static void LoadTexturesOnce()
+        {
+            if (_texturesLoaded) return;
+            _texturesLoaded = true;
+
+            // Single pass over loaded textures instead of three separate heavy searches
+            Texture2D[] allTextures = Resources.FindObjectsOfTypeAll<Texture2D>();
+            foreach (var t in allTextures)
+            {
+                if (t == null) continue;
+                string tName = t.name;
+
+                if (_uberTexture == null && tName.Equals("StatType_Uber", StringComparison.OrdinalIgnoreCase))
+                {
+                    _uberTexture = t;
+                }
+                else if (_luckyTexture == null && tName.Equals("Bonus_Lucky", StringComparison.OrdinalIgnoreCase))
+                {
+                    _luckyTexture = t;
+                }
+                else if (_chaosTexture == null && tName.Equals("StatType_Chaos", StringComparison.OrdinalIgnoreCase))
+                {
+                    _chaosTexture = t;
+                }
+
+                // Stop iterating early if all three icons are found
+                if (_uberTexture != null && _luckyTexture != null && _chaosTexture != null)
+                {
+                    break;
+                }
+            }
+
+            if (_uberTexture == null) Debug.LogWarning("[ItemLabels] Could not find 'StatType_Uber' texture.");
+            if (_luckyTexture == null) Debug.LogWarning("[ItemLabels] Could not find 'Bonus_Lucky' texture.");
+            if (_chaosTexture == null) Debug.LogWarning("[ItemLabels] Could not find 'StatType_Chaos' texture.");
+        }
         
 
         public void Initialize(EquipmentPickup pickup)
@@ -155,42 +194,8 @@ namespace BlackveilDpsMeter
             LocLabel locLabel = new LocLabel();
             descriptor.SetNameToLabel(locLabel);
 
-            if (_uberTexture == null)
-            {
-                // Try loading directly from the Resources folder
-                _uberTexture = Resources.FindObjectsOfTypeAll<Texture2D>()
-                            .FirstOrDefault(t => t.name.Equals("StatType_Uber", StringComparison.OrdinalIgnoreCase));
-                if (_uberTexture == null)
-                {   
-                    
-                    Debug.LogWarning("[ItemLabels] Could not load 'StatType_Uber' texture from Resources. Uber icon will not be displayed.");
-                }
-                
-            }
-            if (_luckyTexture == null)
-            {
-                // Try loading directly from the Resources folder
-                _luckyTexture = Resources.FindObjectsOfTypeAll<Texture2D>()
-                            .FirstOrDefault(t => t.name.Equals("Bonus_Lucky", StringComparison.OrdinalIgnoreCase));
-                if (_luckyTexture == null)
-                {   
-                    
-                    Debug.LogWarning("[ItemLabels] Could not load 'Bonus_Lucky' texture from Resources. Uber icon will not be displayed.");
-                }
-                
-            }
-            if (_chaosTexture == null)
-            {
-                // Try loading directly from the Resources folder
-                _chaosTexture = Resources.FindObjectsOfTypeAll<Texture2D>()
-                            .FirstOrDefault(t => t.name.Equals("StatType_Chaos", StringComparison.OrdinalIgnoreCase));
-                if (_chaosTexture == null)
-                {   
-                    
-                    Debug.LogWarning("[ItemLabels] Could not load 'StatType_Chaos' texture from Resources. Chaos icon will not be displayed.");
-                }
-                
-            }
+            // Load icons once globally in a single quick pass
+            LoadTexturesOnce();
 
             // Get localized full name from the label (falls back to descriptor.Name if text is null)
             string formattedName = !string.IsNullOrEmpty(locLabel.text) ? locLabel.text : descriptor.Name;
