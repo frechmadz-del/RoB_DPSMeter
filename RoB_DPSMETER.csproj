@@ -77,6 +77,20 @@
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="F:\SteamLibrary\steamapps\common\Raiders of Blackveil\BepInEx\plugins\" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="Files to release\plugins\" />
+  </Target>
+
+  <Target Name="ZipRelease" AfterTargets="PostBuildEvent">
+    <PropertyGroup>
+        <ReleaseDir>Files to release</ReleaseDir>
+        <ZipPath>Files to release\Extract_to_BepInEx.zip</ZipPath>
+    </PropertyGroup>
+
+    <!-- Delete existing zip if it exists -->
+    <Delete Files="$(ZipPath)" />
+
+    <!-- Compress only 'plugins' and 'core' folders directly into the zip inside the release folder -->
+    <Exec Command="powershell -Command &quot;Compress-Archive -Path '$(ReleaseDir)\plugins', '$(ReleaseDir)\core' -DestinationPath '$(ZipPath)' -Force&quot;" />
   </Target>
 
 </Project>
