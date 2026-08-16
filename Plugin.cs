@@ -163,8 +163,9 @@ namespace BlackveilDpsMeter
             var harmony = new Harmony("com.gemini.dpsmeter");
             harmony.PatchAll();
             HealthDamageLogPatch.Apply(harmony);
-            SummonValidationPatches.Apply(harmony);
-            PermanentItemLabelPatch.Apply(harmony);
+            SummonValidationPatches.Apply(harmony);//this can be removed
+            PermanentItemLabelPatch.Apply(harmony);// Lootfinder
+            RunHistoryManager.Init(harmony);
 
             // 5. Create your UI Bus
             var tracker = new GameObject("DPS_Global_Bus");
@@ -183,7 +184,8 @@ namespace BlackveilDpsMeter
         }
         private class HotkeyRunner : MonoBehaviour
         {   
-            private bool _isKeyHeld = false; // Our custom debounce
+            private bool p_isKeyHeld = false; // Our custom debounce
+            private bool l_isKeyHeld = false; // Our custom debounce
             private void Update()
             {   
                 var keyboard = UnityEngine.InputSystem.Keyboard.current;
@@ -194,10 +196,10 @@ namespace BlackveilDpsMeter
                     Plugin.Instance.ResetMeter();
                 }
                 
-                if (ui_pressed && !_isKeyHeld )
+                if (ui_pressed && !p_isKeyHeld )
                 {   
                     Debug.Log("[DPS] P Pressed: Toggling UI Visibility");
-                    _isKeyHeld = true;
+                    p_isKeyHeld = true;
                     Debug.Log($"[DPS] Current Visibility: {Plugin._isVisible} | Toggling to: {!Plugin._isVisible} | settings ShowDPSMeter: {Plugin.ShowDPSMeter}");
                     
                     Plugin.Instance.ToggleUIVisibility();
@@ -205,7 +207,20 @@ namespace BlackveilDpsMeter
                 }
                 else if (!ui_pressed)
                 {
-                    _isKeyHeld = false; // Unlock when user lets go of P
+                    p_isKeyHeld = false; // Unlock when user lets go of P
+                }
+
+
+
+                if (keyboard.lKey.isPressed && !l_isKeyHeld)
+                {
+                    l_isKeyHeld = true;
+                    RunHistoryManager._showUI = !RunHistoryManager._showUI;
+                    Debug.Log($"Run History UI toggled: {RunHistoryManager._showUI}");
+                }
+                else if (!keyboard.lKey.isPressed)
+                {
+                    l_isKeyHeld = false; // Unlock when user lets go of L
                 }
             }
         }
