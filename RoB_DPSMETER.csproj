@@ -91,7 +91,7 @@
     <Delete Files="$(ZipPath)" />
 
     <!-- Compress only 'plugins' and 'core' folders directly into the zip inside the release folder -->
-    <Exec Command="powershell -Command &quot;Compress-Archive -Path '$(ReleaseDir)\plugins', '$(ReleaseDir)\core' -DestinationPath '$(ZipPath)' -Force&quot;" />
+    <Exec Command="powershell -Command &quot;Compress-Archive -Path '$(ReleaseDir)\plugins' -DestinationPath '$(ZipPath)' -Force&quot;" />
   </Target>
 
 </Project>
