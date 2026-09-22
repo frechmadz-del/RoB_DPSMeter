@@ -43,20 +43,6 @@
       "frameworks": {
         "netstandard2.1": {
           "targetAlias": "netstandard2.1",
-          "dependencies": {
-            "HarmonyX": {
-              "target": "Package",
-              "version": "[2.16.0, )"
-            },
-            "MonoMod.Backports": {
-              "target": "Package",
-              "version": "[1.1.2, )"
-            },
-            "MonoMod.ILHelpers": {
-              "target": "Package",
-              "version": "[1.1.0, )"
-            }
-          },
           "imports": [
             "net461",
             "net462",

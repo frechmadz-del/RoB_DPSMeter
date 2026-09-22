@@ -112,7 +112,6 @@ F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMETER\bin\Debug\netstandard2.1\DPS Meter
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMETER\obj\Debug\netstandard2.1\DPS Meter.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMETER\obj\Debug\netstandard2.1\DPS Meter.pdb
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Assembly-CSharp.dll
-F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\BepInEx.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Fusion.Runtime.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Unity.InputSystem.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.CoreModule.dll
@@ -148,7 +147,6 @@ F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEn
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.IMGUIModule.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.VFXModule.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.VideoModule.dll
-F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.VRModule.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.GridModule.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.ImageConversionModule.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.SubsystemsModule.dll
@@ -195,9 +193,7 @@ F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Unity.V
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\websocket-sharp.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Unity.Localization.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Assembly-CSharp-firstpass.dll
-F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Photon3Unity3D.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\SauceControl.Blake2Fast.dll
-F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Unity.Mathematics.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\MoreMountains.Feedbacks.Cinemachine.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Lofelt.NiceVibrations.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UUIDNext.dll
@@ -211,8 +207,6 @@ F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Unity.R
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Unity.Postprocessing.Runtime.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\NanoSockets.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Unity.Burst.Unsafe.dll
-F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Unity.Profiling.Core.dll
-F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\BepInEx.xml
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\obj\Debug\netstandard2.1\RoB_DPSMETER.csproj.AssemblyReference.cache
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\obj\Debug\netstandard2.1\RoB_DPSMETER.GeneratedMSBuildEditorConfig.editorconfig
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\obj\Debug\netstandard2.1\RoB_DPSMETER.AssemblyInfoInputs.cache
@@ -230,3 +224,42 @@ F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\QoL Mod
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\QoL Mod.pdb
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\obj\Debug\netstandard2.1\QoL Mod.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\obj\Debug\netstandard2.1\QoL Mod.pdb
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.VectorGraphicsModule.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.ScriptingModule.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.InsightsModule.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.HierarchyModule.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.HierarchyCoreModule.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.MathematicsModule.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.MultiplayerModule.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Unity.Scripting.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.PhysicsCore2DModule.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.MarshallingModule.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.AdaptivePerformanceModule.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.AMDModule.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.IdentifiersModule.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.InputForUIModule.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.RenderAs2DModule.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.U2DRuntimeModule.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\UnityEngine.UnityConsentModule.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\System.Reflection.Metadata.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Unity.InternalAPIEngineBridge.004.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Photon.Realtime.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\PhotonClient.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\System.Collections.Immutable.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Unity.RenderPipelines.GPUDriven.Runtime.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Unity.RenderPipelines.Core.Runtime.Shared.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Unity.RenderPipelines.Universal.2D.Runtime.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\0Harmony.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\BepInEx.Core.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\BepInEx.Unity.Mono.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\System.Runtime.CompilerServices.Unsafe.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\MonoMod.Utils.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\SemanticVersioning.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Mono.Cecil.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\AssetRipper.Primitives.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\BepInEx.Unity.Common.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\BepInEx.Preloader.Core.dll
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\BepInEx.Core.xml
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\BepInEx.Unity.Mono.xml
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\BepInEx.Unity.Common.xml
+F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\BepInEx.Preloader.Core.xml

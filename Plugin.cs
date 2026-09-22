@@ -1,5 +1,7 @@
 ﻿using System;
 using BepInEx;
+using BepInEx.Logging;
+using BepInEx.Unity.Mono; // <--- ADD THIS FOR BEPINEX 6
 using HarmonyLib;
 using UnityEngine;
 using UnityEngine.UI;
@@ -29,7 +31,7 @@ using RaidersOfBlackveilMod;
 namespace BlackveilDpsMeter
 {
     [BepInPlugin("vibecoded_mod_1", "RoB_QoL_Mod", "1.0.0")]
-    public class Plugin : BaseUnityPlugin
+    public class Plugin : BepInEx.Unity.Mono.BaseUnityPlugin
     {
         public static Plugin Instance;
         public PlayerStats LocalPlayerStats = new PlayerStats();
@@ -43,6 +45,8 @@ namespace BlackveilDpsMeter
         private bool mainSceneLoaded = false; // Flag to ensure we only reset the meter once per scene load
         public bool go_timer = false; // Debug toggle to enable combat timer logs in the Update loop
         public static bool _isVisible = true;
+        private GameObject _uiBusHost;
+        private bool _uiBusReady;
         
         public static ConfigEntry<bool> ShowDPSMeterConfig;
         public static ConfigEntry<bool> ShowGroupDPSConfig;
@@ -166,32 +170,60 @@ namespace BlackveilDpsMeter
             SummonValidationPatches.Apply(harmony);
             PermanentItemLabelPatch.Apply(harmony);
 
-            // 5. Create your UI Bus
-            var tracker = new GameObject("DPS_Global_Bus");
-            tracker.hideFlags = HideFlags.HideAndDontSave;
-            DontDestroyOnLoad(tracker);
-            tracker.AddComponent<PersistentUI>();
-            tracker.AddComponent<CombatInfoModule>();
-            tracker.AddComponent<GroupDamageMeter>();
-            tracker.AddComponent<HotkeyRunner>();
-
-            // 5. Safe event subscription
+            // Unity 6: do not attach multiple MonoBehaviours while the plugin object is
+            // still booting. The engine can hard-crash on AddComponent during Awake.
+            // Delay the bus creation until after an actual scene is loaded.
             SceneManager.sceneLoaded -= OnSceneLoaded;
             SceneManager.sceneLoaded += OnSceneLoaded;
 
             Logger.LogInfo("Mod Injected: Hidden Bus & Harmony Patches Active.");
         }
+
+        private IEnumerator InitializeUiBusAfterSceneLoad()
+        {
+            yield return new WaitForSecondsRealtime(0.5f);
+
+            if (_uiBusReady)
+                yield break;
+
+            if (_uiBusHost == null)
+            {
+                _uiBusHost = new GameObject("DPS_Global_Bus");
+                _uiBusHost.hideFlags = HideFlags.HideAndDontSave;
+                DontDestroyOnLoad(_uiBusHost);
+            }
+
+            if (_uiBusHost.GetComponent<PersistentUI>() == null)
+                _uiBusHost.AddComponent<PersistentUI>();
+
+            if (_uiBusHost.GetComponent<CombatInfoModule>() == null)
+                _uiBusHost.AddComponent<CombatInfoModule>();
+
+            if (_uiBusHost.GetComponent<GroupDamageMeter>() == null)
+                _uiBusHost.AddComponent<GroupDamageMeter>();
+
+            if (_uiBusHost.GetComponent<HotkeyRunner>() == null)
+                _uiBusHost.AddComponent<HotkeyRunner>();
+
+            _uiBusReady = true;
+        }
+
         private class HotkeyRunner : MonoBehaviour
         {   
             private bool _isKeyHeld = false; // Our custom debounce
             private void Update()
             {   
                 var keyboard = UnityEngine.InputSystem.Keyboard.current;
+                if (keyboard == null)
+                {
+                    return;
+                }
+
                 bool ui_pressed = keyboard.pKey.isPressed;
 
                 if (keyboard.oKey.isPressed)
                 {
-                    Plugin.Instance.ResetMeter();
+                    Plugin.Instance?.ResetMeter();
                 }
                 
                 if (ui_pressed && !_isKeyHeld )
@@ -200,7 +232,7 @@ namespace BlackveilDpsMeter
                     _isKeyHeld = true;
                     Debug.Log($"[DPS] Current Visibility: {Plugin._isVisible} | Toggling to: {!Plugin._isVisible} | settings ShowDPSMeter: {Plugin.ShowDPSMeter}");
                     
-                    Plugin.Instance.ToggleUIVisibility();
+                    Plugin.Instance?.ToggleUIVisibility();
                     
                 }
                 else if (!ui_pressed)
@@ -254,6 +286,12 @@ namespace BlackveilDpsMeter
         {
             ResetMeter();
             Logger.LogInfo($"Meter reset via Scene Load: {scene.name}");
+
+            if (!_uiBusReady)
+            {
+                StartCoroutine(InitializeUiBusAfterSceneLoad());
+            }
+
             // Capture ActorID when joining Lobby
             if (scene.name == "MainScene")
             {
@@ -409,7 +447,7 @@ namespace BlackveilDpsMeter
 
             // TMP handles overflow automatically, but we can set specific modes:
             _uiText.overflowMode = TextOverflowModes.Overflow;
-            _uiText.enableWordWrapping = false;
+            _uiText.textWrappingMode = TMPro.TextWrappingModes.NoWrap;
 
             _targetCanvas = _canvasObj.GetComponent<Canvas>();
             _targetCanvas.enabled = Plugin._isVisible; // Restore overlay visibility from config

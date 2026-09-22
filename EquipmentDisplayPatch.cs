@@ -12,7 +12,7 @@ namespace BlackveilDpsMeter
 {
     public static class PermanentItemLabelPatch
     {
-        private static readonly Dictionary<int, WorldItemLabel> ActiveLabels = new Dictionary<int, WorldItemLabel>();
+        private static readonly Dictionary<EntityId, WorldItemLabel> ActiveLabels = new Dictionary<EntityId, WorldItemLabel>();
 
         internal static void Apply(Harmony harmony)
         {
@@ -100,7 +100,7 @@ namespace BlackveilDpsMeter
         {
             if (__instance == null) return;
 
-            int id = __instance.GetInstanceID();
+            EntityId id = __instance.GetEntityId(); // Uses EntityId instead of implicit int cast
             if (ActiveLabels.TryGetValue(id, out WorldItemLabel label))
             {
                 if (label != null) UnityEngine.Object.Destroy(label);
@@ -110,7 +110,7 @@ namespace BlackveilDpsMeter
 
         private static void CreateWorldLabel(EquipmentPickup pickup)
         {
-            int id = pickup.GetInstanceID();
+            EntityId id = pickup.GetEntityId();
             if (ActiveLabels.ContainsKey(id)) return;
 
             WorldItemLabel label = pickup.gameObject.AddComponent<WorldItemLabel>();
