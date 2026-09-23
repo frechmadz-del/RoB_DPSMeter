@@ -52,8 +52,12 @@ namespace BlackveilDpsMeter
         public static ConfigEntry<bool> ShowGroupDPSConfig;
         public static ConfigEntry<bool> ShowCombatInfoConfig;
         public static ConfigEntry<string> SelectedElementConfig;
-        public static ConfigEntry<int> MinRarityThresholdConfig; // Min rarity threshold for displayed equipment
+        public static ConfigEntry<int> MinRarityThresholdConfig; // Legacy shared threshold for older configs
+        public static ConfigEntry<int> MinEquipmentRarityThresholdConfig;
+        public static ConfigEntry<int> MinItemRarityThresholdConfig;
+        public static ConfigEntry<bool> HighlightCurrencyConfig;
         public static ConfigEntry<string> SelectedRarityModeConfig; // Rarity mode for displayed equipment
+        public static ConfigEntry<string> SelectedPickupModeConfig; // Pickup type mode: equipment, item, or both
 
         public static bool ShowDPSMeter
         {
@@ -110,16 +114,54 @@ namespace BlackveilDpsMeter
             }
         }
 
-        // Minimum rarity threshold for displayed equipment (0=Common, 1=Rare, 2=Epic, 3=Legendary, 4=Mythic)
+        // Legacy compatibility alias for the equipment threshold.
         public static int MinRarityThreshold
         {
-            get => MinRarityThresholdConfig?.Value ?? 2; // Default to Epic
+            get => MinEquipmentRarityThresholdConfig?.Value ?? MinRarityThresholdConfig?.Value ?? 2;
             set
             {
+                if (MinEquipmentRarityThresholdConfig != null)
+                {
+                    MinEquipmentRarityThresholdConfig.Value = value;
+                    MinEquipmentRarityThresholdConfig.ConfigFile.Save();
+                }
+
                 if (MinRarityThresholdConfig != null)
                 {
                     MinRarityThresholdConfig.Value = value;
                     MinRarityThresholdConfig.ConfigFile.Save();
+                }
+            }
+        }
+
+        public static int MinEquipmentRarityThreshold
+        {
+            get => MinEquipmentRarityThresholdConfig?.Value ?? MinRarityThresholdConfig?.Value ?? 2;
+            set
+            {
+                if (MinEquipmentRarityThresholdConfig != null)
+                {
+                    MinEquipmentRarityThresholdConfig.Value = value;
+                    MinEquipmentRarityThresholdConfig.ConfigFile.Save();
+                }
+
+                if (MinRarityThresholdConfig != null)
+                {
+                    MinRarityThresholdConfig.Value = value;
+                    MinRarityThresholdConfig.ConfigFile.Save();
+                }
+            }
+        }
+
+        public static int MinItemRarityThreshold
+        {
+            get => MinItemRarityThresholdConfig?.Value ?? MinEquipmentRarityThresholdConfig?.Value ?? MinRarityThresholdConfig?.Value ?? 2;
+            set
+            {
+                if (MinItemRarityThresholdConfig != null)
+                {
+                    MinItemRarityThresholdConfig.Value = value;
+                    MinItemRarityThresholdConfig.ConfigFile.Save();
                 }
             }
         }
@@ -137,6 +179,40 @@ namespace BlackveilDpsMeter
             }
         }
 
+        public static bool HighlightCurrency
+        {
+            get => HighlightCurrencyConfig?.Value ?? true;
+            set
+            {
+                if (HighlightCurrencyConfig != null)
+                {
+                    HighlightCurrencyConfig.Value = value;
+                    HighlightCurrencyConfig.ConfigFile.Save();
+                }
+            }
+        }
+
+        public static string SelectedPickupMode
+        {
+            get => SelectedPickupModeConfig?.Value ?? "both";
+            set
+            {
+                if (SelectedPickupModeConfig != null)
+                {
+                    string normalized = value?.Trim().ToLowerInvariant();
+                    if (normalized != "equipment" && normalized != "item" && normalized != "both")
+                    {
+                        normalized = "both";
+                    }
+
+                    SelectedPickupModeConfig.Value = normalized;
+                    SelectedPickupModeConfig.ConfigFile.Save();
+                }
+            }
+        }
+
+        public static bool ShouldShowEquipmentLabels => SelectedPickupMode == "equipment" || SelectedPickupMode == "both";
+        public static bool ShouldShowItemLabels => SelectedPickupMode == "item" || SelectedPickupMode == "both";
 
         void Awake()
         {
@@ -160,8 +236,12 @@ namespace BlackveilDpsMeter
             ShowGroupDPSConfig = Config.Bind("General", "ShowGroupDPS", false, "Show the group DPS display.");
             ShowCombatInfoConfig = Config.Bind("General", "ShowCombatInfo", false, "Show additional combat information.");
             SelectedElementConfig = Config.Bind("General", "SelectedElement", "", "The currently selected element for combat information.");
-            MinRarityThresholdConfig = Config.Bind("Equipment", "MinRarityThreshold", 2, "Minimum rarity level for displayed equipment (2=Epic, 3=Legendary, 4=Mythic).");
+            MinRarityThresholdConfig = Config.Bind("Equipment", "MinRarityThreshold", 2, "Legacy shared rarity threshold for displayed labels.");
+            MinEquipmentRarityThresholdConfig = Config.Bind("Equipment", "MinEquipmentRarityThreshold", 2, "Minimum rarity level for displayed equipment.");
+            MinItemRarityThresholdConfig = Config.Bind("Equipment", "MinItemRarityThreshold", 2, "Minimum rarity level for displayed items.");
+            HighlightCurrencyConfig = Config.Bind("Equipment", "HighlightCurrency", true, "Highlight currency items such as Black Coin, Black Blood, Glitter, and Scrap.");
             SelectedRarityModeConfig = Config.Bind("Equipment", "RarityMode", "off", "Rarity mode for displayed equipment");
+            SelectedPickupModeConfig = Config.Bind("Equipment", "PickupTypeMode", "both", "Which world pickup labels to show: equipment, item, or both.");
 
             // 4. Run initialization ONCE and ONLY once
             var harmony = new Harmony("com.gemini.dpsmeter");

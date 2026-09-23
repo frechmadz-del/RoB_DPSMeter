@@ -7,7 +7,7 @@
   "targets": {
     ".NETStandard,Version=v2.1": {},
     ".NETStandard,Version=v2.1/": {
-      "QoL Mod/1.0.0": {
+      "QoL Mod/1.0.1": {
         "dependencies": {
           "0Harmony": "2.10.2.0",
           "Assembly-CSharp": "0.0.0.0",
@@ -1121,7 +1121,7 @@
     }
   },
   "libraries": {
-    "QoL Mod/1.0.0": {
+    "QoL Mod/1.0.1": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

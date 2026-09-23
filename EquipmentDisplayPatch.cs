@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 using RR.UI.Controls;
+using RR.UI.Components.Pickup;
 using System.Linq;
 
 namespace BlackveilDpsMeter
@@ -13,6 +14,15 @@ namespace BlackveilDpsMeter
     public static class PermanentItemLabelPatch
     {
         private static readonly Dictionary<EntityId, WorldItemLabel> ActiveLabels = new Dictionary<EntityId, WorldItemLabel>();
+        private static readonly Dictionary<int, int> RarityRankMap = new Dictionary<int, int>
+        {
+            { 0, 1 }, // Common
+            { 1, 2 }, // Rare intentionally kept below the default threshold to prevent over-filtering
+            { 2, 3 }, // Epic
+            { 3, 4 }, // Legendary
+            { 4, 5 }, // Mythic
+            { 5, 1 }  // Uncommon
+        };
 
         internal static void Apply(Harmony harmony)
         {
@@ -20,37 +30,8 @@ namespace BlackveilDpsMeter
 
             try
             {
-                int patchedCount = 0;
-
-                // Scan EquipmentPickup for network spawn or setup methods
-                MethodInfo[] methods = typeof(EquipmentPickup).GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
-
-                foreach (var method in methods)
-                {
-                    string name = method.Name;
-                    if (name.Contains("Spawn") || name.Contains("Init") || name.Contains("Setup") || name.Contains("SetEquipment") || name.Equals("OnEnable"))
-                    {
-                        harmony.Patch(method, postfix: new HarmonyMethod(typeof(PermanentItemLabelPatch), nameof(Postfix_OnEquipmentProcessed)));
-                        Debug.Log($"[ItemLabels] Successfully hooked EquipmentPickup.{name}()");
-                        patchedCount++;
-                    }
-                }
-
-                if (patchedCount == 0)
-                {
-                    Debug.LogError("[ItemLabels] Could NOT find any matching setup methods on EquipmentPickup! Dumping method names:");
-                    foreach (var m in methods)
-                    {
-                        Debug.Log($"[ItemLabels] Found Method: {m.Name}");
-                    }
-                }
-
-                // Clean up when item despawns
-                var disableMethod = AccessTools.Method(typeof(EquipmentPickup), "OnDisable");
-                if (disableMethod != null)
-                {
-                    harmony.Patch(disableMethod, postfix: new HarmonyMethod(typeof(PermanentItemLabelPatch), nameof(Postfix_OnItemDespawned)));
-                }
+                PatchPickupType(harmony, typeof(EquipmentPickup), nameof(Postfix_OnEquipmentProcessed));
+                PatchPickupType(harmony, typeof(ItemPickup), nameof(Postfix_OnItemPickupProcessed));
             }
             catch (Exception ex)
             {
@@ -58,18 +39,49 @@ namespace BlackveilDpsMeter
             }
         }
 
+        private static void PatchPickupType(Harmony harmony, Type pickupType, string postfixName)
+        {
+            int patchedCount = 0;
+            MethodInfo[] methods = pickupType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+
+            foreach (var method in methods)
+            {
+                string name = method.Name;
+                if (name.Contains("Spawn") || name.Contains("Init") || name.Contains("Setup") || name.Contains("SetEquipment") || name.Equals("OnEnable") || name.Equals("OnSpawned"))
+                {
+                    harmony.Patch(method, postfix: new HarmonyMethod(typeof(PermanentItemLabelPatch), postfixName));
+                    Debug.Log($"[ItemLabels] Successfully hooked {pickupType.Name}.{name}()");
+                    patchedCount++;
+                }
+            }
+
+            if (patchedCount == 0)
+            {
+                Debug.LogWarning($"[ItemLabels] No matching setup methods found on {pickupType.Name}.");
+            }
+
+            var disableMethod = AccessTools.Method(pickupType, "OnDisable");
+            if (disableMethod != null)
+            {
+                harmony.Patch(disableMethod, postfix: new HarmonyMethod(typeof(PermanentItemLabelPatch), nameof(Postfix_OnItemDespawned)));
+            }
+        }
+
         [HarmonyPostfix]
         private static void Postfix_OnEquipmentProcessed(EquipmentPickup __instance)
         {
-            if (__instance == null ) return;
+            if (__instance == null || !Plugin.ShouldShowEquipmentLabels) return;
 
             try
             {
+                if (string.IsNullOrEmpty(Plugin.SelectedRarityMode) || Plugin.SelectedRarityMode.Equals("off", StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
                 int rawRarity = Convert.ToInt32(__instance.Equipment.RarityLevel);
-                
-                // Normalize Uncommon (5) so it doesn't bypass higher thresholds
                 int normalizedRarity = NormalizeRarity(rawRarity);
-                int minThreshold = Plugin.MinRarityThreshold;
+                int minThreshold = Plugin.MinEquipmentRarityThreshold;
 
                 if (normalizedRarity >= minThreshold && Plugin.SelectedRarityMode == "equal and above")
                 {
@@ -79,8 +91,6 @@ namespace BlackveilDpsMeter
                 {
                     CreateWorldLabel(__instance);
                 }
-                // Plugin.SelectedRarityMode == "off" is off
-
             }
             catch (Exception ex)
             {
@@ -88,19 +98,67 @@ namespace BlackveilDpsMeter
             }
         }
 
+        [HarmonyPostfix]
+        private static void Postfix_OnItemPickupProcessed(ItemPickup __instance)
+        {
+            if (__instance == null || !Plugin.ShouldShowItemLabels) return;
+
+            try
+            {
+                if (string.IsNullOrEmpty(Plugin.SelectedRarityMode) || Plugin.SelectedRarityMode.Equals("off", StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                GenericItemDescriptor descriptor = new GenericItemDescriptor(__instance.Item);
+                if (!Plugin.HighlightCurrency && IsCurrencyItem(descriptor.ItemType))
+                {
+                    return;
+                }
+
+                int rawRarity = (int)descriptor.Rarity;
+                int normalizedRarity = NormalizeRarity(rawRarity);
+                int minThreshold = Plugin.MinItemRarityThreshold;
+
+                if (normalizedRarity >= minThreshold && Plugin.SelectedRarityMode == "equal and above")
+                {
+                    CreateWorldLabel(__instance);
+                }
+                else if (normalizedRarity == minThreshold && Plugin.SelectedRarityMode == "exclusive")
+                {
+                    CreateWorldLabel(__instance);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[ItemLabels] Exception in Postfix_OnItemPickupProcessed: {ex.Message}");
+            }
+        }
+
+        private static bool IsCurrencyItem(ItemType itemType)
+        {
+            return itemType == ItemType.BlackCoin
+                || itemType == ItemType.BlackBlood
+                || itemType == ItemType.Glitter
+                || itemType == ItemType.Scrap;
+        }
+
         private static int NormalizeRarity(int rawRarity)
         {
-            // Common: 0, Rare: 1, Epic: 2, Legendary: 3, Mythic: 4, Uncommon: 5 -> mapped to 1
-            if (rawRarity == 5) return 1; 
-            return rawRarity;
+            if (RarityRankMap.TryGetValue(rawRarity, out int mapped))
+            {
+                return mapped;
+            }
+
+            return 1;
         }
 
         [HarmonyPostfix]
-        private static void Postfix_OnItemDespawned(EquipmentPickup __instance)
+        private static void Postfix_OnItemDespawned(PickupItemWithUI __instance)
         {
             if (__instance == null) return;
 
-            EntityId id = __instance.GetEntityId(); // Uses EntityId instead of implicit int cast
+            EntityId id = __instance.GetEntityId();
             if (ActiveLabels.TryGetValue(id, out WorldItemLabel label))
             {
                 if (label != null) UnityEngine.Object.Destroy(label);
@@ -117,11 +175,23 @@ namespace BlackveilDpsMeter
             label.Initialize(pickup);
             ActiveLabels[id] = label;
         }
+
+        private static void CreateWorldLabel(ItemPickup pickup)
+        {
+            EntityId id = pickup.GetEntityId();
+            if (ActiveLabels.ContainsKey(id)) return;
+
+            WorldItemLabel label = pickup.gameObject.AddComponent<WorldItemLabel>();
+            label.Initialize_Item(pickup);
+            ActiveLabels[id] = label;
+        }
     }
 
     public class WorldItemLabel : MonoBehaviour
     {
         private EquipmentPickup _pickup;
+        private ItemPickup _itemPickup;
+
         private Camera _mainCamera;
         private string _labelText;
         private Color _textColor;
@@ -136,13 +206,11 @@ namespace BlackveilDpsMeter
         private bool _isLucky;
         private bool _isChaos;
 
-        
-private static void LoadTexturesOnce()
+        private static void LoadTexturesOnce()
         {
             if (_texturesLoaded) return;
             _texturesLoaded = true;
 
-            // Single pass over loaded textures instead of three separate heavy searches
             Texture2D[] allTextures = Resources.FindObjectsOfTypeAll<Texture2D>();
             foreach (var t in allTextures)
             {
@@ -162,43 +230,32 @@ private static void LoadTexturesOnce()
                     _chaosTexture = t;
                 }
 
-                // Stop iterating early if all three icons are found
                 if (_uberTexture != null && _luckyTexture != null && _chaosTexture != null)
                 {
                     break;
                 }
             }
-
-            if (_uberTexture == null) Debug.LogWarning("[ItemLabels] Could not find 'StatType_Uber' texture.");
-            if (_luckyTexture == null) Debug.LogWarning("[ItemLabels] Could not find 'Bonus_Lucky' texture.");
-            if (_chaosTexture == null) Debug.LogWarning("[ItemLabels] Could not find 'StatType_Chaos' texture.");
         }
-        
 
         public void Initialize(EquipmentPickup pickup)
         {
             _pickup = pickup;
+            _itemPickup = null;
 
-            // 1. Check if the pickup allows the local player to interact with it
-            // Hide/disable the label if this item is not meant for the local player
             if (!IsLocalPlayerAllowedToPickup(pickup))
             {
                 this.enabled = false;
                 return;
             }
+
             _mainCamera = Camera.main;
 
-            // Fetch the full descriptor to extract localized Name and special statuses
             EquipmentDescriptor descriptor = new EquipmentDescriptor(pickup.Equipment);
-
             LocLabel locLabel = new LocLabel();
             descriptor.SetNameToLabel(locLabel);
 
-            // Load icons once globally in a single quick pass
-            LoadTexturesOnce();
-
-            // Get localized full name from the label (falls back to descriptor.Name if text is null)
             string formattedName = !string.IsNullOrEmpty(locLabel.text) ? locLabel.text : descriptor.Name;
+            _labelText = formattedName;
 
             _isUber = false;
             if (descriptor.Properties != null)
@@ -213,47 +270,61 @@ private static void LoadTexturesOnce()
                 }
             }
 
-            _isLucky = false;
-            if (descriptor.IsLucky)
-            {
-                _isLucky = true;
-            }
-            
-            _isChaos = false;
-            if (descriptor.IsChaos)
-            {
-                _isChaos = true;
-            }
+            _isLucky = descriptor.IsLucky;
+            _isChaos = descriptor.IsChaos;
+
+            int rarityValue = (int)pickup.Equipment.RarityLevel;
+            _textColor = GetRarityTextColor(rarityValue);
+            _backgroundColor = GetRarityBackgroundColor(rarityValue);
 
             if (_bgTexture == null)
             {
                 _bgTexture = MakeSolidTexture(1, 1, Color.white);
             }
 
-            _labelText = formattedName;
+            LoadTexturesOnce();
+            BuildStyle();
+        }
 
-            // Safe rarity color conversion
-            int rarityValue = (int)pickup.Equipment.RarityLevel;
-            switch (rarityValue)
+        public void Initialize_Item(ItemPickup itemPickup)
+        {
+            _itemPickup = itemPickup;
+            _pickup = null;
+
+            if (!IsLocalPlayerAllowedToPickup(itemPickup))
             {
-                case 2: // Epic (Purple)
-                    _textColor = new Color(0.78f, 0.58f, 0.95f);       // Soft purple text
-                    _backgroundColor = new Color(0.18f, 0.16f, 0.24f, 0.9f); // Dark purple tint
-                    break;
-                case 3: // Legendary (Gold/Orange)
-                    _textColor = new Color(1.0f, 0.75f, 0.28f);       // Gold/Orange text
-                    _backgroundColor = new Color(0.22f, 0.18f, 0.12f, 0.9f); // Dark gold tint
-                    break;
-                case 4: // Mythic (Red/Pink)
-                    _textColor = new Color(0.95f, 0.45f, 0.52f);       // Soft red text
-                    _backgroundColor = new Color(0.24f, 0.14f, 0.16f, 0.9f); // Dark red tint
-                    break;
-                default: // Default / White
-                    _textColor = Color.white;
-                    _backgroundColor = new Color(0.12f, 0.12f, 0.12f, 0.85f);
-                    break;
+                this.enabled = false;
+                return;
             }
 
+            _mainCamera = Camera.main;
+
+            GenericItemDescriptor descriptor = new GenericItemDescriptor(itemPickup.Item);
+            LocLabel locLabel = new LocLabel();
+            descriptor.SetNameToLabel(locLabel);
+
+            string formattedName = !string.IsNullOrEmpty(locLabel.text) ? locLabel.text : descriptor.Name;
+            _labelText = formattedName;
+
+            _isUber = false;
+            _isLucky = false;
+            _isChaos = false;
+
+            int rarityValue = (int)descriptor.Rarity;
+            _textColor = GetRarityTextColor(rarityValue);
+            _backgroundColor = GetRarityBackgroundColor(rarityValue);
+
+            if (_bgTexture == null)
+            {
+                _bgTexture = MakeSolidTexture(1, 1, Color.white);
+            }
+
+            LoadTexturesOnce();
+            BuildStyle();
+        }
+
+        private void BuildStyle()
+        {
             _style = new GUIStyle
             {
                 fontSize = 16,
@@ -264,21 +335,52 @@ private static void LoadTexturesOnce()
             _style.normal.textColor = _textColor;
         }
 
-        public bool IsLocalPlayerAllowedToPickup(EquipmentPickup pickup)
+        private Color GetRarityTextColor(int rarityValue)
+        {
+            switch (rarityValue)
+            {
+                case 1: // Soft Sky Blue (Lightened)
+                    return new Color(0.78f, 0.88f, 1.0f);
+                case 2: // Pastel Lavender (Lightened)
+                    return new Color(0.89f, 0.79f, 0.98f);
+                case 3: // Bright Warm Yellow (Lightened)
+                    return new Color(1.0f, 0.88f, 0.60f);
+                case 4: // Soft Coral Pink (Lightened)
+                    return new Color(0.98f, 0.72f, 0.76f);
+                default:
+                    return Color.white;
+            }
+        }
+
+        private Color GetRarityBackgroundColor(int rarityValue)
+        {
+            switch (rarityValue)
+            {
+                case 1:
+                    return new Color(0.12f, 0.18f, 0.28f, 0.9f);
+                case 2:
+                    return new Color(0.18f, 0.16f, 0.24f, 0.9f);
+                case 3:
+                    return new Color(0.22f, 0.18f, 0.12f, 0.9f);
+                case 4:
+                    return new Color(0.24f, 0.14f, 0.16f, 0.9f);
+                default:
+                    return new Color(0.12f, 0.12f, 0.12f, 0.85f);
+            }
+        }
+
+        public bool IsLocalPlayerAllowedToPickup(PickupItemWithUI pickup)
         {
             if (pickup == null) return false;
 
-            // 1. Ensure the local player reference exists
             var localPlayer = RR.PlayerManager.Instance?.LocalPlayer;
             if (localPlayer == null) return false;
 
-            // 2. Check PlayerFilter / Slot Index ownership
             if (pickup.PlayerFilter != RR.Game.Perk.PlayerFilter.AnyPlayer)
             {
                 int localSlot = localPlayer.SlotIndex;
                 int allowedSlot = (int)pickup.PlayerFilter;
 
-                // If the item is locked to a specific slot and we are not that slot, return false
                 if (localSlot != allowedSlot)
                 {
                     return false;
@@ -287,6 +389,7 @@ private static void LoadTexturesOnce()
 
             return true;
         }
+
         private Texture2D MakeSolidTexture(int width, int height, Color color)
         {
             Color[] pix = new Color[width * height];
@@ -299,8 +402,18 @@ private static void LoadTexturesOnce()
 
         private void OnGUI()
         {
-            if (_pickup == null || !_pickup.gameObject.activeInHierarchy) return;
-            // 1. Check if the pause menu or any overlay page is active
+            GameObject pickupObject = null;
+            if (_pickup != null)
+            {
+                pickupObject = _pickup.gameObject;
+            }
+            else if (_itemPickup != null)
+            {
+                pickupObject = _itemPickup.gameObject;
+            }
+
+            if (pickupObject == null || !pickupObject.activeInHierarchy) return;
+
             if (RR.UI.UISystem.UIManager.Instance != null && RR.UI.UISystem.UIManager.Instance.IsMainLayerPageOpen)
             {
                 return;
@@ -312,94 +425,70 @@ private static void LoadTexturesOnce()
             Vector3 worldPos = transform.position + new Vector3(0, 1.8f, 0);
             Vector3 screenPos = _mainCamera.WorldToScreenPoint(worldPos);
 
-            if (screenPos.z > 0)
+            if (screenPos.z <= 0) return;
+
+            _style.alignment = TextAnchor.MiddleLeft;
+            Vector2 textSize = _style.CalcSize(new GUIContent(_labelText));
+
+            float paddingX = 16f;
+            float paddingY = 8f;
+            float iconSize = 16f;
+            float iconSpacing = 2f;
+
+            float totalIconWidth = 0f;
+            if (_isUber) totalIconWidth += iconSpacing + iconSize;
+            if (_isLucky) totalIconWidth += iconSize + iconSpacing;
+            if (_isChaos) totalIconWidth += iconSpacing + iconSize;
+
+            float boxWidth = textSize.x + totalIconWidth + paddingX;
+            float boxHeight = textSize.y + paddingY;
+
+            float boxX = screenPos.x - (boxWidth / 2f);
+            float boxY = Screen.height - screenPos.y - (boxHeight / 2f);
+
+            Rect bgRect = new Rect(boxX, boxY, boxWidth, boxHeight);
+
+            Color savedGUIColor = GUI.color;
+            GUI.color = _backgroundColor;
+            GUI.DrawTexture(bgRect, _bgTexture);
+            GUI.color = savedGUIColor;
+
+            float contentStartX = boxX + (paddingX / 2f);
+            Rect textRect = new Rect(contentStartX, boxY, textSize.x, boxHeight);
+
+            GUIStyle outlineStyle = new GUIStyle(_style)
             {
-                // Force Left alignment so text doesn't auto-center inside its bounding box
-                _style.alignment = TextAnchor.MiddleLeft;
+                alignment = TextAnchor.MiddleLeft
+            };
+            outlineStyle.normal.textColor = new Color(0.15f, 0.15f, 0.15f, 0.9f);
 
-                // Measure exact pixel dimensions of the text string
-                Vector2 textSize = _style.CalcSize(new GUIContent(_labelText));
+            GUI.Label(new Rect(textRect.x - 2, textRect.y, textRect.width, textRect.height), _labelText, outlineStyle);
+            GUI.Label(new Rect(textRect.x + 2, textRect.y, textRect.width, textRect.height), _labelText, outlineStyle);
+            GUI.Label(new Rect(textRect.x, textRect.y - 2, textRect.width, textRect.height), _labelText, outlineStyle);
+            GUI.Label(new Rect(textRect.x, textRect.y + 2, textRect.width, textRect.height), _labelText, outlineStyle);
+            GUI.Label(textRect, _labelText, _style);
 
-                float paddingX = 16f;      // Horizontal padding around all content
-                float paddingY = 8f;       // Vertical padding around all content
-                float iconSize = 16f;      // Width/Height of the sprites
-                float iconSpacing = 2f;    // Gap between text and sprites / between sprites
+            float currentIconX = textRect.xMax + iconSpacing;
+            float iconY = boxY + (boxHeight - iconSize) / 2f;
 
-                // Calculate total content width dynamically based on active flags
-                float totalIconWidth = 0f;
-                if (_isUber) totalIconWidth += iconSpacing + iconSize;
-                if (_isLucky) totalIconWidth += iconSize;
-                if (_isChaos) totalIconWidth += iconSpacing + iconSize;
+            if (_isUber && _uberTexture != null)
+            {
+                Rect uberRect = new Rect(currentIconX, iconY, iconSize, iconSize);
+                GUI.DrawTexture(uberRect, _uberTexture, ScaleMode.ScaleToFit, alphaBlend: true);
+                currentIconX += iconSize + iconSpacing;
+            }
 
-                float contentWidth = textSize.x + totalIconWidth;
+            if (_isLucky && _luckyTexture != null)
+            {
+                Rect luckyRect = new Rect(currentIconX, iconY - 3f, iconSize + 6f, iconSize + 6f);
+                GUI.DrawTexture(luckyRect, _luckyTexture, ScaleMode.ScaleToFit, alphaBlend: true);
+                currentIconX += iconSize + 6f + iconSpacing;
+            }
 
-                float boxWidth = contentWidth + paddingX;
-                float boxHeight = textSize.y + paddingY;
-
-                float boxX = screenPos.x - (boxWidth / 2f);
-                float boxY = Screen.height - screenPos.y - (boxHeight / 2f);
-
-                Rect bgRect = new Rect(boxX, boxY, boxWidth, boxHeight);
-
-                // 1. Draw background box
-                Color savedGUIColor = GUI.color;
-                GUI.color = _backgroundColor;
-                GUI.DrawTexture(bgRect, _bgTexture);
-                GUI.color = savedGUIColor;
-
-                // 2. Position text at the start of the content area inside padding
-                float contentStartX = boxX + (paddingX / 2f);
-                Rect textRect = new Rect(contentStartX, boxY, textSize.x, boxHeight);
-
-                // 3. Draw text outlines
-                GUIStyle outlineStyle = new GUIStyle(_style)
-                {
-                    alignment = TextAnchor.MiddleLeft
-                };
-                outlineStyle.normal.textColor = new Color(0.15f, 0.15f, 0.15f, 0.9f);
-
-                GUI.Label(new Rect(textRect.x - 2, textRect.y, textRect.width, textRect.height), _labelText, outlineStyle);
-                GUI.Label(new Rect(textRect.x + 2, textRect.y, textRect.width, textRect.height), _labelText, outlineStyle);
-                GUI.Label(new Rect(textRect.x, textRect.y - 2, textRect.width, textRect.height), _labelText, outlineStyle);
-                GUI.Label(new Rect(textRect.x, textRect.y + 2, textRect.width, textRect.height), _labelText, outlineStyle);
-
-                // Draw main item text
-                GUI.Label(textRect, _labelText, _style);
-
-                // Track the current X position for placing icons right after the text
-                float currentIconX = textRect.xMax + iconSpacing;
-                float iconY = boxY + (boxHeight - iconSize) / 2f;
-
-                // 4. Draw Uber icon if applicable
-                if (_isUber)
-                {
-                    if (_uberTexture != null)
-                    {
-                        Rect uberRect = new Rect(currentIconX, iconY, iconSize, iconSize);
-                        GUI.DrawTexture(uberRect, _uberTexture, ScaleMode.ScaleToFit, alphaBlend: true);
-                        currentIconX += iconSize; // Advance X for the next icon
-                    }
-                }
-
-                // 5. Draw Lucky icon if applicable
-                if (_isLucky)
-                {
-                    if (_luckyTexture != null)
-                    {
-                        Rect luckyRect = new Rect(currentIconX, iconY-3, iconSize+6, iconSize+6);
-                        GUI.DrawTexture(luckyRect, _luckyTexture, ScaleMode.ScaleToFit, alphaBlend: true);
-                        currentIconX += iconSize+6;
-                    }
-                }
-                // 5. Draw Lucky icon if applicable
-                if (_isChaos)
-                {
-                    if (_chaosTexture!= null)
-                    {
-                        Rect chaosRect = new Rect(currentIconX, iconY, iconSize, iconSize);
-                        GUI.DrawTexture(chaosRect, _chaosTexture, ScaleMode.ScaleToFit, alphaBlend: true);
-                    }
-                }
+            if (_isChaos && _chaosTexture != null)
+            {
+                Rect chaosRect = new Rect(currentIconX, iconY, iconSize, iconSize);
+                GUI.DrawTexture(chaosRect, _chaosTexture, ScaleMode.ScaleToFit, alphaBlend: true);
             }
         }
     }

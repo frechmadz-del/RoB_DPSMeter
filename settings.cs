@@ -15,9 +15,11 @@ public class ModSettingsPage : SettingsBasePage
 
     public enum RarityThreshold
             {
-                Epic = 2,
-                Legendary = 3,
-                Mythic = 4
+                // Uncommon = 1,
+                Rare = 2,
+                Epic = 3,
+                Legendary = 4,
+                Mythic = 5
             }
 
     // Use existing settings page template to avoid missing VisualTreeAsset
@@ -202,7 +204,7 @@ public static class SettingsPage_Constructor_Patch
             modsContent_Loot.style.flexGrow = 1;
             modsContent_Loot.style.marginTop = 6;
 
-            List<string> Choices_rarity_mode = new List<string> { "off", "exclusive", "equal and above"}; 
+            List<string> Choices_rarity_mode = new List<string> { "off", "equal and above"}; 
             
             // NOTE: Replace "Plugin.SelectedElement" with your actual backing config field/property!
             DropdownField Dropdown_rarity_mode = new DropdownField("Lootfilter", Choices_rarity_mode, Plugin.SelectedRarityMode ?? "off");
@@ -226,40 +228,96 @@ public static class SettingsPage_Constructor_Patch
             });
             modsContent_Loot.Add(Dropdown_rarity_mode);
 
-            // 1. Generate dropdown choices directly from the enum names ("Epic", "Legendary", "Mythic")
-            List<string> modeChoices_rarity = new List<string>(Enum.GetNames(typeof(ModSettingsPage.RarityThreshold)));
+            List<string> pickupModeChoices = new List<string> { "equipment", "item", "both" };
+            DropdownField pickupModeDropdown = new DropdownField("Pickup labels", pickupModeChoices, Plugin.SelectedPickupMode);
+            pickupModeDropdown.style.marginLeft = 6;
+            pickupModeDropdown.style.marginTop = 8;
+            pickupModeDropdown.style.width = 300;
 
-            // 2. Fall back to current enum string value, or default to Epic if null/out of bounds
-            string initialValue = Enum.GetName(typeof(ModSettingsPage.RarityThreshold), (ModSettingsPage.RarityThreshold)Plugin.MinRarityThreshold) 
-                                ?? ModSettingsPage.RarityThreshold.Epic.ToString();
-
-            DropdownField modeDropdown_rarity = new DropdownField("Select Rarity", modeChoices_rarity, initialValue);
-            modeDropdown_rarity.style.marginLeft = 6;
-            modeDropdown_rarity.style.marginTop = 8;
-            modeDropdown_rarity.style.width = 300; // Gives it clean structure inside UI content
-
-            var dropdownLabel_rarity = modeDropdown_rarity.Q<Label>();
-            if (dropdownLabel_rarity != null)
+            var pickupModeLabel = pickupModeDropdown.Q<Label>();
+            if (pickupModeLabel != null)
             {
-                dropdownLabel_rarity.style.fontSize = 18;
-                dropdownLabel_rarity.style.color = Color.white;
+                pickupModeLabel.style.fontSize = 18;
+                pickupModeLabel.style.color = Color.white;
             }
 
-            modeDropdown_rarity.RegisterValueChangedCallback(evt =>
+            pickupModeDropdown.RegisterValueChangedCallback(evt =>
             {
+                Plugin.SelectedPickupMode = evt.newValue;
+                Debug.Log($"[ModSettings] Pickup mode changed to: {evt.newValue}");
+            });
+            modsContent_Loot.Add(pickupModeDropdown);
 
-                // Parse the chosen string ("Epic", "Legendary", "Mythic") to the enum
+            Toggle currencyToggle = new Toggle("Highlight currency");
+            currencyToggle.value = Plugin.HighlightCurrency;
+            currencyToggle.style.marginLeft = 6;
+            currencyToggle.style.marginTop = 4;
+            var currencyLabel = currencyToggle.Q<Label>();
+            if (currencyLabel != null)
+            {
+                currencyLabel.style.fontSize = 18;
+                currencyLabel.style.color = Color.white;
+            }
+            currencyToggle.RegisterValueChangedCallback(evt =>
+            {
+                Plugin.HighlightCurrency = evt.newValue;
+                Debug.Log($"[ModSettings] Highlight currency changed to: {evt.newValue}");
+            });
+            modsContent_Loot.Add(currencyToggle);
+
+            List<string> modeChoices_rarity = new List<string>(Enum.GetNames(typeof(ModSettingsPage.RarityThreshold)));
+
+            string equipmentInitialValue = Enum.GetName(typeof(ModSettingsPage.RarityThreshold), (ModSettingsPage.RarityThreshold)Plugin.MinEquipmentRarityThreshold)
+                                            ?? ModSettingsPage.RarityThreshold.Epic.ToString();
+
+            DropdownField equipmentRarityDropdown = new DropdownField("Equipment min rarity", modeChoices_rarity, equipmentInitialValue);
+            equipmentRarityDropdown.style.marginLeft = 6;
+            equipmentRarityDropdown.style.marginTop = 8;
+            equipmentRarityDropdown.style.width = 300;
+
+            var equipmentRarityLabel = equipmentRarityDropdown.Q<Label>();
+            if (equipmentRarityLabel != null)
+            {
+                equipmentRarityLabel.style.fontSize = 18;
+                equipmentRarityLabel.style.color = Color.white;
+            }
+
+            equipmentRarityDropdown.RegisterValueChangedCallback(evt =>
+            {
                 if (Enum.TryParse(evt.newValue, out ModSettingsPage.RarityThreshold selectedRarity))
                 {
-                    // Cast the enum back to its underlying integer (2, 3, or 4) and save to MinRarityThreshold
                     int rarityIntValue = (int)selectedRarity;
-                    Plugin.MinRarityThresholdConfig.Value = rarityIntValue;
-
-                    Debug.Log($"[ModSettings] Rarity Threshold changed to: {selectedRarity} (int: {Plugin.MinRarityThresholdConfig.Value})");
+                    Plugin.MinEquipmentRarityThreshold = rarityIntValue;
+                    Debug.Log($"[ModSettings] Equipment rarity threshold changed to: {selectedRarity} (int: {Plugin.MinEquipmentRarityThreshold})");
                 }
             });
+            modsContent_Loot.Add(equipmentRarityDropdown);
 
-            modsContent_Loot.Add(modeDropdown_rarity);
+            string itemInitialValue = Enum.GetName(typeof(ModSettingsPage.RarityThreshold), (ModSettingsPage.RarityThreshold)Plugin.MinItemRarityThreshold)
+                                    ?? ModSettingsPage.RarityThreshold.Epic.ToString();
+
+            DropdownField itemRarityDropdown = new DropdownField("Item min rarity", modeChoices_rarity, itemInitialValue);
+            itemRarityDropdown.style.marginLeft = 6;
+            itemRarityDropdown.style.marginTop = 8;
+            itemRarityDropdown.style.width = 300;
+
+            var itemRarityLabel = itemRarityDropdown.Q<Label>();
+            if (itemRarityLabel != null)
+            {
+                itemRarityLabel.style.fontSize = 18;
+                itemRarityLabel.style.color = Color.white;
+            }
+
+            itemRarityDropdown.RegisterValueChangedCallback(evt =>
+            {
+                if (Enum.TryParse(evt.newValue, out ModSettingsPage.RarityThreshold selectedRarity))
+                {
+                    int rarityIntValue = (int)selectedRarity;
+                    Plugin.MinItemRarityThreshold = rarityIntValue;
+                    Debug.Log($"[ModSettings] Item rarity threshold changed to: {selectedRarity} (int: {Plugin.MinItemRarityThreshold})");
+                }
+            });
+            modsContent_Loot.Add(itemRarityDropdown);
 
             // DPSMeter Mod Settings section
             modsSection.Add(modsContent);
