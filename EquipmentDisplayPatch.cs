@@ -111,7 +111,7 @@ namespace BlackveilDpsMeter
                 }
 
                 GenericItemDescriptor descriptor = new GenericItemDescriptor(__instance.Item);
-                if (!Plugin.HighlightCurrency && IsCurrencyItem(descriptor.ItemType))
+                if (!Plugin.ShouldHighlightItemType(descriptor.ItemType))
                 {
                     return;
                 }
@@ -133,14 +133,6 @@ namespace BlackveilDpsMeter
             {
                 Debug.LogWarning($"[ItemLabels] Exception in Postfix_OnItemPickupProcessed: {ex.Message}");
             }
-        }
-
-        private static bool IsCurrencyItem(ItemType itemType)
-        {
-            return itemType == ItemType.BlackCoin
-                || itemType == ItemType.BlackBlood
-                || itemType == ItemType.Glitter
-                || itemType == ItemType.Scrap;
         }
 
         private static int NormalizeRarity(int rawRarity)
@@ -347,6 +339,9 @@ namespace BlackveilDpsMeter
                     return new Color(1.0f, 0.88f, 0.60f);
                 case 4: // Soft Coral Pink (Lightened)
                     return new Color(0.98f, 0.72f, 0.76f);
+                case 5: // Soft Green(Lightened)
+                    return new Color(0.68f, 0.91f, 0.35f);
+                
                 default:
                     return Color.white;
             }
@@ -364,6 +359,8 @@ namespace BlackveilDpsMeter
                     return new Color(0.22f, 0.18f, 0.12f, 0.9f);
                 case 4:
                     return new Color(0.24f, 0.14f, 0.16f, 0.9f);
+                case 5:
+                    return new Color(0.24f, 0.31f, 0.18f, 0.95f);
                 default:
                     return new Color(0.12f, 0.12f, 0.12f, 0.85f);
             }

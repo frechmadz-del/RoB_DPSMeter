@@ -2,6 +2,7 @@
 using BepInEx;
 using BepInEx.Logging;
 using BepInEx.Unity.Mono; // <--- ADD THIS FOR BEPINEX 6
+using System.IO;
 using HarmonyLib;
 using UnityEngine;
 using UnityEngine.UI;
@@ -14,11 +15,13 @@ using RR.Utility;
 using RR.Level;
 using UnityEngine.SceneManagement;
 using System.Collections.Generic;
+using Newtonsoft.Json;
 using RR.Game.Character;
 using RR.Game.Input;
 using System.Reflection;
 using RR.UI.Controls.Inventory;
 using UnityEngine.UIElements;
+using UnityEngine.Localization.Settings;
 using RR;
 using Fusion;
 using System.Linq;
@@ -30,6 +33,39 @@ using RaidersOfBlackveilMod;
 
 namespace BlackveilDpsMeter
 {
+    [Serializable]
+    public sealed class GraphHistoryData
+    {
+        public int Version = 1;
+        public StageDpsHistoryData[] StageRecords = Array.Empty<StageDpsHistoryData>();
+        public CombatStatsHistoryData[] CombatStatsRecords = Array.Empty<CombatStatsHistoryData>();
+    }
+
+    [Serializable]
+    public sealed class StageDpsHistoryData
+    {
+        public int StageNumber;
+        public string SceneName;
+        public float TotalDamage;
+        public float CombatTime;
+        public float[] DamageByType;
+        public string[] CollectedPerks;
+        public int[] CollectedPerkIds;
+        public int[] PerkUpgradeLevels;
+        public bool[] PerkTalents;
+        public bool[] MasterTalents;
+    }
+
+    [Serializable]
+    public sealed class CombatStatsHistoryData
+    {
+        public int StageNumber;
+        public string SceneName;
+        public string SelectedElement;
+        public float[] Values;
+        public float[] MaximumValues;
+    }
+
     [BepInPlugin("vibecoded_mod_1", "RoB_QoL_Mod", "1.0.0")]
     public class Plugin : BepInEx.Unity.Mono.BaseUnityPlugin
     {
@@ -39,10 +75,32 @@ namespace BlackveilDpsMeter
         public float ActiveCombatTime = 0f; // Tracks accumulated combat seconds
         public float StartTime = -1f;
         public float LastHitTime = -1f; // out of fight timer
+        public readonly List<StageDpsRecord> StageDpsRecords = new List<StageDpsRecord>();
+        public readonly List<CombatStatsRecord> CombatStatsRecords = new List<CombatStatsRecord>();
+        private string _currentStageSceneName;
+        private ulong _currentStageSceneHandle;
+        private float _currentStageCombatTime;
+        private readonly float[] _currentStageMaximumCombatStats = new float[13];
+        private bool _hasCurrentStageCombatStats;
+        private float _nextCombatStatsSampleTime;
+        private readonly List<string> _currentStagePerks = new List<string>();
+        private readonly List<int> _currentStagePerkIds = new List<int>();
+        private readonly List<int> _currentStagePerkUpgradeLevels = new List<int>();
+        private readonly List<bool> _currentStagePerkTalents = new List<bool>();
+        private readonly List<bool> _currentStageMasterTalents = new List<bool>();
+        private readonly HashSet<int> _stageKnownPerkIds = new HashSet<int>();
+        private readonly HashSet<int> _stageBaselinePerkIds = new HashSet<int>();
+        private readonly HashSet<string> _stageRecordedTalentKeys = new HashSet<string>();
+        private readonly Dictionary<int, int> _stageBaselinePerkUpgradeLevels = new Dictionary<int, int>();
+        private readonly HashSet<int> _runRecordedPerkIds = new HashSet<int>();
+        private readonly HashSet<string> _legacyRunRecordedPerkNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private PerkHandler _localPerkHandler;
+        private string _pendingStageSceneName;
+        private ulong _pendingStageSceneHandle;
+        private bool _lobbySceneLoaded;
         public int LocalPlayerActorID = -1; // Captured when joining lobby, used to filter damage logs in multiplayer
         private static bool _instanceExists = false;
         public bool fetchingActorID = false; // Debug toggle to enable ActorID fetching logs in the Update loop
-        private bool mainSceneLoaded = false; // Flag to ensure we only reset the meter once per scene load
         public bool go_timer = false; // Debug toggle to enable combat timer logs in the Update loop
         public static bool _isVisible = true;
         private GameObject _uiBusHost;
@@ -56,8 +114,16 @@ namespace BlackveilDpsMeter
         public static ConfigEntry<int> MinEquipmentRarityThresholdConfig;
         public static ConfigEntry<int> MinItemRarityThresholdConfig;
         public static ConfigEntry<bool> HighlightCurrencyConfig;
+        public static ConfigEntry<string> HighlightedItemTypeConfig;
         public static ConfigEntry<string> SelectedRarityModeConfig; // Rarity mode for displayed equipment
         public static ConfigEntry<string> SelectedPickupModeConfig; // Pickup type mode: equipment, item, or both
+
+        public static readonly List<string> HighlightItemTypeOptions = new List<string>
+        {
+            "currency",
+            "transmutationstone",
+            "raritystone"
+        };
 
         public static bool ShowDPSMeter
         {
@@ -181,14 +247,171 @@ namespace BlackveilDpsMeter
 
         public static bool HighlightCurrency
         {
-            get => HighlightCurrencyConfig?.Value ?? true;
+            get => IsHighlightTypeEnabled("currency");
             set
             {
+                SetHighlightTypeEnabled("currency", value);
                 if (HighlightCurrencyConfig != null)
                 {
                     HighlightCurrencyConfig.Value = value;
                     HighlightCurrencyConfig.ConfigFile.Save();
                 }
+            }
+        }
+
+        public static bool HighlightTransmutationStone
+        {
+            get => IsHighlightTypeEnabled("transmutationstone");
+            set => SetHighlightTypeEnabled("transmutationstone", value);
+        }
+
+        public static bool HighlightRarityStone
+        {
+            get => IsHighlightTypeEnabled("raritystone");
+            set => SetHighlightTypeEnabled("raritystone", value);
+        }
+
+        public static List<string> GetHighlightItemTypeOptions()
+        {
+            return new List<string>(HighlightItemTypeOptions);
+        }
+
+        public static string GetHighlightItemTypeDisplayName(string itemTypeKey)
+        {
+            if (string.IsNullOrWhiteSpace(itemTypeKey))
+            {
+                return "Custom";
+            }
+
+            switch (itemTypeKey.Trim().ToLowerInvariant())
+            {
+                case "currency":
+                    return "Currency";
+                case "transmutationstone":
+                    return "Control Cube and Chaos Prism";
+                case "raritystone":
+                    return "Artificer Orb";
+                default:
+                    return itemTypeKey;
+            }
+        }
+
+        public static bool IsHighlightTypeEnabled(string itemTypeKey)
+        {
+            return GetEnabledHighlightTypes().Contains(NormalizeHighlightType(itemTypeKey));
+        }
+
+        public static void SetHighlightTypeEnabled(string itemTypeKey, bool enabled)
+        {
+            string normalized = NormalizeHighlightType(itemTypeKey);
+            if (string.IsNullOrEmpty(normalized))
+            {
+                return;
+            }
+
+            HashSet<string> enabledTypes = GetEnabledHighlightTypes();
+            if (enabled)
+            {
+                enabledTypes.Add(normalized);
+            }
+            else
+            {
+                enabledTypes.Remove(normalized);
+            }
+
+            if (HighlightedItemTypeConfig != null)
+            {
+                HighlightedItemTypeConfig.Value = string.Join(",", HighlightItemTypeOptions.Where(type => enabledTypes.Contains(type)).ToList());
+                HighlightedItemTypeConfig.ConfigFile.Save();
+            }
+        }
+
+        public static bool ShouldHighlightItemType(ItemType itemType)
+        {
+            switch (itemType)
+            {
+                case ItemType.BlackCoin:
+                    return HighlightCurrency;
+                case ItemType.BlackBlood:
+                    return HighlightCurrency;
+                case ItemType.Glitter:
+                    return HighlightCurrency;
+                case ItemType.Scrap:
+                    return HighlightCurrency;
+                case ItemType.TransmutationStone:
+                    return HighlightTransmutationStone;
+                case ItemType.RarityStone:
+                    return HighlightRarityStone;
+                default:
+                    return true; // Default to highlighting other item types
+            }
+        }
+
+        private static HashSet<string> GetEnabledHighlightTypes()
+        {
+            var enabledTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (HighlightedItemTypeConfig != null)
+            {
+                foreach (string itemType in HighlightedItemTypeConfig.Value.Split(',', ';'))
+                {
+                    string trimmed = itemType?.Trim();
+                    if (string.IsNullOrEmpty(trimmed))
+                    {
+                        continue;
+                    }
+
+                    string normalized = NormalizeHighlightType(trimmed);
+                    if (!string.IsNullOrEmpty(normalized))
+                    {
+                        enabledTypes.Add(normalized);
+                    }
+                }
+            }
+
+            if (enabledTypes.Count == 0 && HighlightCurrencyConfig != null)
+            {
+                if (HighlightCurrencyConfig.Value)
+                {
+                    enabledTypes.Add("currency");
+                }
+            }
+
+            if (enabledTypes.Count == 0)
+            {
+                foreach (string defaultType in HighlightItemTypeOptions)
+                {
+                    enabledTypes.Add(defaultType);
+                }
+            }
+
+            return enabledTypes;
+        }
+
+        private static string NormalizeHighlightType(string itemTypeKey)
+        {
+            if (string.IsNullOrWhiteSpace(itemTypeKey))
+            {
+                return string.Empty;
+            }
+
+            string normalized = itemTypeKey.Trim();
+            switch (normalized.ToLowerInvariant())
+            {
+                case "currency":
+                case "blackcoin":
+                case "blackblood":
+                case "glitter":
+                case "scrap":
+                    return "currency";
+                case "transmutationstone":
+                case "transmutation stone":
+                    return "transmutationstone";
+                case "raritystone":
+                case "rarity stone":
+                    return "raritystone";
+                default:
+                    return normalized.ToLowerInvariant();
             }
         }
 
@@ -239,15 +462,47 @@ namespace BlackveilDpsMeter
             MinRarityThresholdConfig = Config.Bind("Equipment", "MinRarityThreshold", 2, "Legacy shared rarity threshold for displayed labels.");
             MinEquipmentRarityThresholdConfig = Config.Bind("Equipment", "MinEquipmentRarityThreshold", 2, "Minimum rarity level for displayed equipment.");
             MinItemRarityThresholdConfig = Config.Bind("Equipment", "MinItemRarityThreshold", 2, "Minimum rarity level for displayed items.");
-            HighlightCurrencyConfig = Config.Bind("Equipment", "HighlightCurrency", true, "Highlight currency items such as Black Coin, Black Blood, Glitter, and Scrap.");
+            HighlightCurrencyConfig = Config.Bind("Equipment", "HighlightCurrency", true, "Legacy compatibility toggle for highlighting currency items.");
+            HighlightedItemTypeConfig = Config.Bind("Equipment", "HighlightedItemTypes", "currency,transmutationstone,raritystone", "Comma-separated item categories to highlight in the loot filter. Supported values: currency, transmutationstone, raritystone.");
             SelectedRarityModeConfig = Config.Bind("Equipment", "RarityMode", "off", "Rarity mode for displayed equipment");
             SelectedPickupModeConfig = Config.Bind("Equipment", "PickupTypeMode", "both", "Which world pickup labels to show: equipment, item, or both.");
+
+            LoadGraphHistory();
+
+            if (string.IsNullOrWhiteSpace(HighlightedItemTypeConfig.Value))
+            {
+                HighlightedItemTypeConfig.Value = string.Join(",", HighlightItemTypeOptions);
+                HighlightedItemTypeConfig.ConfigFile.Save();
+            }
+            else
+            {
+                HashSet<string> normalizedTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (string itemType in HighlightedItemTypeConfig.Value.Split(',', ';'))
+                {
+                    string trimmed = itemType?.Trim();
+                    if (string.IsNullOrEmpty(trimmed))
+                    {
+                        continue;
+                    }
+
+                    string normalized = NormalizeHighlightType(trimmed);
+                    if (!string.IsNullOrEmpty(normalized))
+                    {
+                        normalizedTypes.Add(normalized);
+                    }
+                }
+
+                if (normalizedTypes.Count == 0)
+                {
+                    HighlightedItemTypeConfig.Value = string.Join(",", HighlightItemTypeOptions);
+                    HighlightedItemTypeConfig.ConfigFile.Save();
+                }
+            }
 
             // 4. Run initialization ONCE and ONLY once
             var harmony = new Harmony("com.gemini.dpsmeter");
             harmony.PatchAll();
             HealthDamageLogPatch.Apply(harmony);
-            SummonValidationPatches.Apply(harmony);
             PermanentItemLabelPatch.Apply(harmony);
 
             // Unity 6: do not attach multiple MonoBehaviours while the plugin object is
@@ -285,6 +540,9 @@ namespace BlackveilDpsMeter
             if (_uiBusHost.GetComponent<HotkeyRunner>() == null)
                 _uiBusHost.AddComponent<HotkeyRunner>();
 
+            if (_uiBusHost.GetComponent<GraphDashboardWindow>() == null)
+                _uiBusHost.AddComponent<GraphDashboardWindow>();
+
             _uiBusReady = true;
         }
 
@@ -300,6 +558,7 @@ namespace BlackveilDpsMeter
                 }
 
                 bool ui_pressed = keyboard.pKey.isPressed;
+                bool controlPressed = keyboard.leftCtrlKey.isPressed || keyboard.rightCtrlKey.isPressed;
 
                 if (keyboard.oKey.isPressed)
                 {
@@ -308,12 +567,19 @@ namespace BlackveilDpsMeter
                 
                 if (ui_pressed && !_isKeyHeld )
                 {   
-                    Debug.Log("[DPS] P Pressed: Toggling UI Visibility");
                     _isKeyHeld = true;
-                    Debug.Log($"[DPS] Current Visibility: {Plugin._isVisible} | Toggling to: {!Plugin._isVisible} | settings ShowDPSMeter: {Plugin.ShowDPSMeter}");
-                    
-                    Plugin.Instance?.ToggleUIVisibility();
-                    
+
+                    if (controlPressed)
+                    {
+                        Debug.Log("[DPS] Ctrl+P pressed: Toggling graph dashboard");
+                        GetComponent<GraphDashboardWindow>()?.ToggleVisibility();
+                    }
+                    else
+                    {
+                        Debug.Log("[DPS] P Pressed: Toggling UI Visibility");
+                        Debug.Log($"[DPS] Current Visibility: {Plugin._isVisible} | Toggling to: {!Plugin._isVisible} | settings ShowDPSMeter: {Plugin.ShowDPSMeter}");
+                        Plugin.Instance?.ToggleUIVisibility();
+                    }
                 }
                 else if (!ui_pressed)
                 {
@@ -351,7 +617,241 @@ namespace BlackveilDpsMeter
             }
             AllPlayerStats.Clear();
             
-            Plugin.Instance.ActiveCombatTime = 0.11f;
+            ActiveCombatTime = 0.11f;
+            StartTime = -1f;
+            LastHitTime = -1f;
+        }
+
+        private void Update()
+        {
+            if (!string.IsNullOrEmpty(_currentStageSceneName) && LocalPlayerActorID != -1)
+            {
+                TryBindLocalPerkHandler();
+            }
+        }
+
+        private void TryBindLocalPerkHandler()
+        {
+            if (_localPerkHandler != null &&
+                _localPerkHandler.Stats != null &&
+                _localPerkHandler.Stats.ActorID == LocalPlayerActorID)
+            {
+                return;
+            }
+
+            UnbindLocalPerkHandler();
+            PerkHandler[] handlers = Resources.FindObjectsOfTypeAll<PerkHandler>();
+            for (int i = 0; i < handlers.Length; i++)
+            {
+                PerkHandler handler = handlers[i];
+                if (handler == null ||
+                    !handler.gameObject.scene.IsValid() ||
+                    handler.Stats == null ||
+                    handler.Stats.ActorID != LocalPlayerActorID)
+                {
+                    continue;
+                }
+
+                _localPerkHandler = handler;
+                _localPerkHandler.OnPerkCollected += HandleLocalPerkCollected;
+                SeedLocalPerkBaseline(_localPerkHandler);
+                Logger.LogInfo($"[Perks] Tracking perk pickups for local player {LocalPlayerActorID}.");
+                return;
+            }
+        }
+
+        private void SeedLocalPerkBaseline(PerkHandler handler)
+        {
+            foreach (PerkDescriptor perk in handler.CollectedPerks)
+            {
+                if (perk == null)
+                {
+                    continue;
+                }
+
+                bool isNewlyObserved = _stageKnownPerkIds.Add(perk.PerkID);
+                _stageBaselinePerkIds.Add(perk.PerkID);
+                int upgradeLevel = Mathf.Clamp(handler.GetPerkUpgradeLevel(perk), 0, 2);
+                _stageBaselinePerkUpgradeLevels[perk.PerkID] = upgradeLevel;
+                if (isNewlyObserved && StageDpsRecords.Count == 0 && perk.IsWithEquipment)
+                {
+                    AddStagePerk(perk, upgradeLevel);
+                }
+            }
+        }
+
+        private void UnbindLocalPerkHandler()
+        {
+            if (_localPerkHandler != null)
+            {
+                _localPerkHandler.OnPerkCollected -= HandleLocalPerkCollected;
+                _localPerkHandler = null;
+            }
+        }
+
+        private void HandleLocalPerkCollected(PerkDescriptor perk)
+        {
+            if (perk == null || string.IsNullOrWhiteSpace(_currentStageSceneName))
+            {
+                return;
+            }
+
+            string perkName = GetPerkDisplayName(perk);
+            int upgradeLevel = _localPerkHandler != null
+                ? _localPerkHandler.GetPerkUpgradeLevel(perk)
+                : 0;
+            _stageBaselinePerkUpgradeLevels[perk.PerkID] = Mathf.Clamp(upgradeLevel, 0, 2);
+
+            bool isNewOnHandler = _stageKnownPerkIds.Add(perk.PerkID);
+            if (!isNewOnHandler ||
+                string.IsNullOrWhiteSpace(perkName) ||
+                _runRecordedPerkIds.Contains(perk.PerkID) ||
+                _legacyRunRecordedPerkNames.Contains(perkName))
+            {
+                return;
+            }
+
+            AddStagePerk(perk, perkName, upgradeLevel);
+        }
+
+        private void AddStagePerk(PerkDescriptor perk, int upgradeLevel)
+        {
+            AddStagePerk(perk, GetPerkDisplayName(perk), upgradeLevel);
+        }
+
+        private void AddStagePerk(PerkDescriptor perk, string perkName, int upgradeLevel)
+        {
+            if (string.IsNullOrWhiteSpace(perkName))
+            {
+                return;
+            }
+
+            _currentStagePerkIds.Add(perk.PerkID);
+            _currentStagePerks.Add(perkName);
+            _currentStagePerkUpgradeLevels.Add(Mathf.Clamp(upgradeLevel, 0, 2));
+            _currentStagePerkTalents.Add(perk.IsTalentPerk);
+            _currentStageMasterTalents.Add(false);
+            _stageKnownPerkIds.Add(perk.PerkID);
+        }
+
+        internal void RecordLocalChampionTalent(ChampionTalent talent, bool masterVersion)
+        {
+            if (talent == null ||
+                talent.Stats == null ||
+                talent.Stats.ActorID != LocalPlayerActorID ||
+                LocalPlayerActorID == -1 ||
+                string.IsNullOrWhiteSpace(_currentStageSceneName))
+            {
+                return;
+            }
+
+            PerkDescriptor talentPerk = talent.TalentPerk;
+            if (talentPerk != null && _stageBaselinePerkIds.Contains(talentPerk.PerkID))
+            {
+                return;
+            }
+
+            string talentKey = talent.AbilityEnum + ":" + talent.TalentIndex + ":" + masterVersion;
+            if (!_stageRecordedTalentKeys.Add(talentKey))
+            {
+                return;
+            }
+
+            string talentName = talent.Name != null ? talent.Name.Value : null;
+            if (string.IsNullOrWhiteSpace(talentName))
+            {
+                _stageRecordedTalentKeys.Remove(talentKey);
+                Logger.LogWarning($"[Perks] Could not record an activated champion talent with no usable name (index {talent.TalentIndex}).");
+                return;
+            }
+
+            _currentStagePerkIds.Add(int.MinValue + _currentStagePerkIds.Count);
+            _currentStagePerks.Add(talentName);
+            _currentStagePerkUpgradeLevels.Add(0);
+            _currentStagePerkTalents.Add(true);
+            _currentStageMasterTalents.Add(masterVersion);
+        }
+
+        internal void RecordLocalPerkUpgrade(PerkHandler handler, int perkId)
+        {
+            if (handler == null ||
+                handler != _localPerkHandler ||
+                handler.Stats == null ||
+                handler.Stats.ActorID != LocalPlayerActorID ||
+                string.IsNullOrWhiteSpace(_currentStageSceneName))
+            {
+                return;
+            }
+
+            PerkDatabase perkDatabase = PerkDatabase.Instance;
+            if (perkDatabase == null)
+            {
+                Logger.LogWarning($"[Perks] Could not record upgrade for perk ID {perkId}: PerkDatabase is unavailable.");
+                return;
+            }
+
+            PerkDescriptor perk = perkDatabase.PerkDescriptorByID(perkId);
+            if (perk == null)
+            {
+                Logger.LogWarning($"[Perks] Could not resolve upgraded perk ID {perkId}.");
+                return;
+            }
+
+            string perkName = GetPerkDisplayName(perk);
+            if (string.IsNullOrWhiteSpace(perkName))
+            {
+                return;
+            }
+
+            int upgradeLevel = handler.GetPerkUpgradeLevel(perk);
+            int baselineUpgradeLevel = _stageBaselinePerkUpgradeLevels.TryGetValue(perkId, out int knownUpgradeLevel)
+                ? knownUpgradeLevel
+                : 0;
+            if (upgradeLevel <= baselineUpgradeLevel)
+            {
+                return;
+            }
+
+            int stagePerkIndex = _currentStagePerkIds.LastIndexOf(perkId);
+            if (stagePerkIndex >= 0)
+            {
+                _currentStagePerks[stagePerkIndex] = perkName;
+                _currentStagePerkUpgradeLevels[stagePerkIndex] = Mathf.Clamp(upgradeLevel, 0, 2);
+                _currentStagePerkTalents[stagePerkIndex] = perk.IsTalentPerk;
+                _currentStageMasterTalents[stagePerkIndex] = false;
+            }
+            else
+            {
+                _currentStagePerkIds.Add(perkId);
+                _currentStagePerks.Add(perkName);
+                _currentStagePerkUpgradeLevels.Add(Mathf.Clamp(upgradeLevel, 0, 2));
+                _currentStagePerkTalents.Add(perk.IsTalentPerk);
+                _currentStageMasterTalents.Add(false);
+            }
+        }
+
+        private string GetPerkDisplayName(PerkDescriptor perk)
+        {
+            string perkName = perk.HasTranslatedName
+                ? LocalizationSettings.StringDatabase.GetLocalizedString(
+                    "PerkName",
+                    perk.name,
+                    null,
+                    FallbackBehavior.UseProjectSettings)
+                : perk.name;
+            if (string.IsNullOrWhiteSpace(perkName))
+            {
+                Logger.LogWarning($"[Perks] Could not resolve a display name for perk '{perk.name}'.");
+                perkName = perk.name;
+            }
+
+            if (string.IsNullOrWhiteSpace(perkName))
+            {
+                Logger.LogWarning("[Perks] Ignored a perk with no usable name.");
+                return null;
+            }
+
+            return perkName;
         }
 
         public PlayerStats GetPlayerStats(int actorID)
@@ -364,33 +864,431 @@ namespace BlackveilDpsMeter
         }
         public void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
-            ResetMeter();
-            Logger.LogInfo($"Meter reset via Scene Load: {scene.name}");
+            bool isMainScene = scene.name == "MainScene";
+            bool isLobbyScene = scene.name == "GB_LobbyAirship";
+            bool stageWasActive = !string.IsNullOrEmpty(_currentStageSceneName);
+            ulong sceneHandle = scene.handle.GetRawData();
+            bool changedStage = stageWasActive && !isMainScene && !isLobbyScene &&
+                sceneHandle != _currentStageSceneHandle;
+            Debug.Log($"[DPS] Scene Loaded: {scene.name} | isMainScene: {isMainScene} | isLobbyScene: {isLobbyScene} | rootcount: {scene.rootCount} | stageWasActive: {stageWasActive}");
+
+            if (changedStage)
+            {
+                FinishCurrentStage();
+                UnbindLocalPerkHandler();
+                _currentStageSceneName = null;
+                _currentStageSceneHandle = 0;
+            }
+            else if (isMainScene || isLobbyScene)
+            {
+                UnbindLocalPerkHandler();
+            }
+
+            if (!isMainScene)
+            {
+                ResetMeter();
+                Logger.LogInfo($"Meter reset via Scene Load: {scene.name}");
+            }
+            else
+            {
+                Logger.LogInfo("[DPS] MainScene is excluded from stage tracking; active stage data was preserved.");
+            }
 
             if (!_uiBusReady)
             {
                 StartCoroutine(InitializeUiBusAfterSceneLoad());
             }
 
-            // Capture ActorID when joining Lobby
-            if (scene.name == "MainScene")
+            if (isLobbyScene)
             {
-                mainSceneLoaded = true;
-                go_timer = false;
-            }
-            else if (scene.name != "MainScene" && mainSceneLoaded)
-            {
-                mainSceneLoaded = false;
+                _lobbySceneLoaded = true;
+                _pendingStageSceneName = null;
+                _pendingStageSceneHandle = 0;
+                _currentStageSceneName = null;
+                _currentStageSceneHandle = 0;
                 fetchingActorID = true;
                 go_timer = true;
             }
-            else
+            else if (_lobbySceneLoaded)
             {
+                _lobbySceneLoaded = false;
+                StageDpsRecords.Clear();
+                CombatStatsRecords.Clear();
+                _runRecordedPerkIds.Clear();
+                _legacyRunRecordedPerkNames.Clear();
+                _currentStagePerks.Clear();
+                _currentStagePerkIds.Clear();
+                _currentStagePerkUpgradeLevels.Clear();
+                _currentStagePerkTalents.Clear();
+                _currentStageMasterTalents.Clear();
+                _stageKnownPerkIds.Clear();
+                _stageBaselinePerkIds.Clear();
+                _stageRecordedTalentKeys.Clear();
+                _stageBaselinePerkUpgradeLevels.Clear();
+                var dashboard = _uiBusHost != null ? _uiBusHost.GetComponent<GraphDashboardWindow>() : null;
+                dashboard?.RefreshStageGraph(StageDpsRecords);
+                dashboard?.RefreshCombatStatsGraph(CombatStatsRecords);
+                dashboard?.RefreshPerkTable(StageDpsRecords);
+                SaveGraphHistory();
+                Logger.LogInfo("[DPS] Cleared graph history after GB_LobbyAirship for a new run.");
+            }
+
+            if (isMainScene)
+            {
+                _pendingStageSceneName = null;
+                _pendingStageSceneHandle = 0;
                 fetchingActorID = false;
+                go_timer = false;
+            }
+            else if (!isLobbyScene &&
+                (!stageWasActive || changedStage) &&
+                !string.IsNullOrEmpty(scene.name))
+            {
+                _pendingStageSceneName = scene.name;
+                _pendingStageSceneHandle = sceneHandle;
+                LocalPlayerActorID = -1;
+                LocalPlayerStats.ActorID = -1;
+                fetchingActorID = true;
+                go_timer = false;
             }
             Logger.LogInfo($"[DPS] Scene Loaded: {scene.name} | Fetching ActorID: {fetchingActorID}");
         }
+
+        internal void OnLocalPlayerActorIdCaptured()
+        {
+            if (LocalPlayerActorID == -1 || string.IsNullOrEmpty(_pendingStageSceneName))
+            {
+                return;
+            }
+
+            _currentStageSceneName = _pendingStageSceneName;
+            _currentStageSceneHandle = _pendingStageSceneHandle;
+            _pendingStageSceneName = null;
+            _pendingStageSceneHandle = 0;
+            _currentStagePerks.Clear();
+            _currentStagePerkIds.Clear();
+            _currentStagePerkUpgradeLevels.Clear();
+            _currentStagePerkTalents.Clear();
+            _currentStageMasterTalents.Clear();
+            _stageKnownPerkIds.Clear();
+            _stageBaselinePerkIds.Clear();
+            _stageRecordedTalentKeys.Clear();
+            _stageBaselinePerkUpgradeLevels.Clear();
+            _currentStageCombatTime = 0f;
+            Array.Clear(_currentStageMaximumCombatStats, 0, _currentStageMaximumCombatStats.Length);
+            _hasCurrentStageCombatStats = false;
+            _nextCombatStatsSampleTime = 0f;
+            go_timer = true;
+            Logger.LogInfo($"[DPS] Started stage tracking for {_currentStageSceneName} with local player {LocalPlayerActorID}.");
+        }
+
+        private void FinishCurrentStage()
+        {
+            if (string.IsNullOrEmpty(_currentStageSceneName) || LocalPlayerActorID == -1)
+            {
+                return;
+            }
+
+            float combatTime = _currentStageCombatTime;
+            int stageNumber = StageDpsRecords.Count + 1;
+            if (LocalPlayerStats.TotalDamage <= 0f && _currentStagePerks.Count == 0)
+            {
+                Logger.LogInfo($"[DPS] Skipped empty stage {_currentStageSceneName}; no local damage or new perks were recorded.");
+                return;
+            }
+
+            CaptureCombatStatsForActiveStage(true);
+            if (_localPerkHandler == null)
+            {
+                Logger.LogWarning($"[Perks] No local PerkHandler was available during stage {stageNumber}; perk pickups may be incomplete.");
+            }
+
+            StageDpsRecords.Add(new StageDpsRecord(
+                stageNumber,
+                _currentStageSceneName,
+                LocalPlayerStats,
+                combatTime,
+                _currentStagePerks.ToArray(),
+                _currentStagePerkUpgradeLevels.ToArray(),
+                _currentStagePerkTalents.ToArray(),
+                _currentStageMasterTalents.ToArray(),
+                _currentStagePerkIds.ToArray()));
+            for (int i = 0; i < _currentStagePerkIds.Count; i++)
+            {
+                if (_currentStagePerkIds[i] >= 0)
+                {
+                    _runRecordedPerkIds.Add(_currentStagePerkIds[i]);
+                }
+            }
+
+            var combatInfo = CombatInfoModule.Instance;
+            if (combatInfo != null)
+            {
+                CombatStatsRecords.Add(new CombatStatsRecord(
+                    stageNumber,
+                    _currentStageSceneName,
+                    SelectedElement,
+                    combatInfo.GetCombatStatsValues(),
+                    _hasCurrentStageCombatStats ? _currentStageMaximumCombatStats : null));
+            }
+            else
+            {
+                Logger.LogWarning($"[CombatInfo] Could not record combat stats for stage {stageNumber}: CombatInfoModule is not available.");
+            }
+
+            var dashboard = _uiBusHost != null ? _uiBusHost.GetComponent<GraphDashboardWindow>() : null;
+            dashboard?.RefreshStageGraph(StageDpsRecords);
+            dashboard?.RefreshCombatStatsGraph(CombatStatsRecords);
+            dashboard?.RefreshPerkTable(StageDpsRecords);
+            SaveGraphHistory();
+            Logger.LogInfo($"[DPS] Recorded stage {StageDpsRecords.Count}: {LocalPlayerStats.TotalDamage:F1} damage over {combatTime:F1}s ({LocalPlayerStats.TotalDamage / Mathf.Max(0.1f, combatTime):F1} DPS).");
+        }
+
+        internal void FinishCurrentRun()
+        {
+            if (string.IsNullOrEmpty(_currentStageSceneName))
+            {
+                return;
+            }
+
+            FinishCurrentStage();
+            _currentStageSceneName = null;
+            _currentStageSceneHandle = 0;
+            UnbindLocalPerkHandler();
+            SaveGraphHistory();
+        }
+
+        private string GraphHistoryPath => Path.Combine(Paths.ConfigPath, "RoB_DPSMeter_Graphs.json");
+
+        private void LoadGraphHistory()
+        {
+            string path = GraphHistoryPath;
+            if (!File.Exists(path))
+            {
+                Logger.LogInfo($"[DPS] No saved graph history found at '{path}'.");
+                return;
+            }
+
+            try
+            {
+                string json = File.ReadAllText(path);
+                var history = JsonConvert.DeserializeObject<GraphHistoryData>(json);
+                if (history == null || history.Version != 1)
+                {
+                    Logger.LogWarning($"[DPS] Graph history at '{path}' has an unsupported or invalid format; starting with empty graphs.");
+                    return;
+                }
+
+                StageDpsRecords.Clear();
+                _runRecordedPerkIds.Clear();
+                _legacyRunRecordedPerkNames.Clear();
+                if (history.StageRecords != null)
+                {
+                    foreach (var record in history.StageRecords)
+                    {
+                        if (record == null ||
+                            string.IsNullOrEmpty(record.SceneName) ||
+                            record.DamageByType == null ||
+                            record.DamageByType.Length != StageDamageTypes.Names.Length)
+                        {
+                            Logger.LogWarning("[DPS] Skipping invalid stage DPS record in saved graph history.");
+                            continue;
+                        }
+
+                        var stats = new PlayerStats
+                        {
+                            TotalDamage = record.TotalDamage,
+                            TotalBurn = record.DamageByType[0],
+                            TotalPoison = record.DamageByType[1],
+                            TotalBleed = record.DamageByType[2],
+                            TotalShock = record.DamageByType[3],
+                            TotalRoot = record.DamageByType[4],
+                            TotalFrost = record.DamageByType[5],
+                            TotalCurse = record.DamageByType[6],
+                            TotalMinion = record.DamageByType[7],
+                            TotalBless = record.DamageByType[8],
+                            TotalFury = record.DamageByType[9]
+                        };
+                        StageDpsRecords.Add(new StageDpsRecord(
+                            record.StageNumber,
+                            record.SceneName,
+                            stats,
+                            record.CombatTime,
+                            record.CollectedPerks,
+                            record.PerkUpgradeLevels,
+                            record.PerkTalents,
+                            record.MasterTalents,
+                            record.CollectedPerkIds));
+
+                        string[] collectedPerks = record.CollectedPerks ?? Array.Empty<string>();
+                        bool hasPerkIds = record.CollectedPerkIds != null &&
+                            record.CollectedPerkIds.Length == collectedPerks.Length;
+                        for (int perkIndex = 0; perkIndex < collectedPerks.Length; perkIndex++)
+                        {
+                            if (hasPerkIds)
+                            {
+                                if (record.CollectedPerkIds[perkIndex] >= 0)
+                                {
+                                    _runRecordedPerkIds.Add(record.CollectedPerkIds[perkIndex]);
+                                }
+                            }
+                            else if (!string.IsNullOrWhiteSpace(collectedPerks[perkIndex]))
+                            {
+                                _legacyRunRecordedPerkNames.Add(collectedPerks[perkIndex]);
+                            }
+                        }
+                    }
+                }
+
+                CombatStatsRecords.Clear();
+                if (history.CombatStatsRecords != null)
+                {
+                    foreach (var record in history.CombatStatsRecords)
+                    {
+                        if (record == null ||
+                            string.IsNullOrEmpty(record.SceneName) ||
+                            record.Values == null ||
+                            record.Values.Length != 13 ||
+                            record.MaximumValues == null ||
+                            record.MaximumValues.Length != record.Values.Length)
+                        {
+                            Logger.LogWarning("[DPS] Skipping invalid combat stats record in saved graph history.");
+                            continue;
+                        }
+
+                        CombatStatsRecords.Add(new CombatStatsRecord(
+                            record.StageNumber,
+                            record.SceneName,
+                            record.SelectedElement,
+                            record.Values,
+                            record.MaximumValues));
+                    }
+                }
+                Logger.LogInfo($"[DPS] Restored {StageDpsRecords.Count} stage graph records and {CombatStatsRecords.Count} combat stats records.");
+            }
+            catch (IOException exception)
+            {
+                Logger.LogError($"[DPS] Failed to read graph history from '{path}': {exception}");
+            }
+            catch (UnauthorizedAccessException exception)
+            {
+                Logger.LogError($"[DPS] Access denied while reading graph history from '{path}': {exception}");
+            }
+            catch (Exception exception)
+            {
+                Logger.LogError($"[DPS] Failed to load graph history from '{path}': {exception}");
+            }
+        }
+
+        private void SaveGraphHistory()
+        {
+            string path = GraphHistoryPath;
+            try
+            {
+                var history = new GraphHistoryData();
+                history.StageRecords = StageDpsRecords
+                    .Select(record => new StageDpsHistoryData
+                    {
+                        StageNumber = record.StageNumber,
+                        SceneName = record.SceneName,
+                        TotalDamage = record.TotalDamage,
+                        CombatTime = record.CombatTime,
+                        DamageByType = (float[])record.DamageByType.Clone(),
+                        CollectedPerks = (string[])record.CollectedPerks.Clone(),
+                        CollectedPerkIds = (int[])record.CollectedPerkIds.Clone(),
+                        PerkUpgradeLevels = (int[])record.PerkUpgradeLevels.Clone(),
+                        PerkTalents = (bool[])record.PerkTalents.Clone(),
+                        MasterTalents = (bool[])record.MasterTalents.Clone()
+                    })
+                    .ToArray();
+
+                history.CombatStatsRecords = CombatStatsRecords
+                    .Select(record => new CombatStatsHistoryData
+                    {
+                        StageNumber = record.StageNumber,
+                        SceneName = record.SceneName,
+                        SelectedElement = record.SelectedElement,
+                        Values = (float[])record.Values.Clone(),
+                        MaximumValues = (float[])record.MaximumValues.Clone()
+                    })
+                    .ToArray();
+
+                Directory.CreateDirectory(Paths.ConfigPath);
+                string json = JsonConvert.SerializeObject(history, Formatting.Indented);
+                var verifiedHistory = JsonConvert.DeserializeObject<GraphHistoryData>(json);
+                if (verifiedHistory == null ||
+                    verifiedHistory.StageRecords == null ||
+                    verifiedHistory.CombatStatsRecords == null ||
+                    verifiedHistory.StageRecords.Length != history.StageRecords.Length ||
+                    verifiedHistory.CombatStatsRecords.Length != history.CombatStatsRecords.Length)
+                {
+                    throw new InvalidDataException("Serialized graph history failed record-count validation.");
+                }
+
+                File.WriteAllText(path, json);
+                Logger.LogInfo($"[DPS] Saved {history.StageRecords.Length} stage graph records and {history.CombatStatsRecords.Length} combat stats records to '{path}'.");
+            }
+            catch (IOException exception)
+            {
+                Logger.LogError($"[DPS] Failed to save graph history to '{path}': {exception}");
+            }
+            catch (UnauthorizedAccessException exception)
+            {
+                Logger.LogError($"[DPS] Access denied while saving graph history to '{path}': {exception}");
+            }
+            catch (Exception exception)
+            {
+                Logger.LogError($"[DPS] Failed to serialize graph history to '{path}': {exception}");
+            }
+        }
+
+        private void OnApplicationQuit()
+        {
+            FinishCurrentRun();
+            UnbindLocalPerkHandler();
+            SaveGraphHistory();
+        }
+
+        private void OnDestroy()
+        {
+            UnbindLocalPerkHandler();
+        }
+
+        internal void CaptureCombatStatsForActiveStage(bool force = false)
+        {
+            if (string.IsNullOrEmpty(_currentStageSceneName) ||
+                (!force && Time.unscaledTime < _nextCombatStatsSampleTime))
+            {
+                return;
+            }
+
+            _nextCombatStatsSampleTime = Time.unscaledTime + 0.25f;
+            var combatInfo = CombatInfoModule.Instance;
+            if (combatInfo == null)
+            {
+                return;
+            }
+
+            float[] values = combatInfo.GetCombatStatsValues();
+            for (int i = 0; i < values.Length; i++)
+            {
+                if (!_hasCurrentStageCombatStats || values[i] > _currentStageMaximumCombatStats[i])
+                {
+                    _currentStageMaximumCombatStats[i] = values[i];
+                }
+            }
+            _hasCurrentStageCombatStats = true;
+        }
+
+        internal void TickStageCombatTime(float deltaTime)
+        {
+            if (!string.IsNullOrEmpty(_currentStageSceneName))
+            {
+                _currentStageCombatTime += deltaTime;
+            }
+        }
     }
+
     public class PlayerStats
     {
         public int ActorID = -1;  // Captured when lobby is joined
@@ -539,6 +1437,8 @@ namespace BlackveilDpsMeter
 
         void Update()
         {
+            Plugin.Instance.CaptureCombatStatsForActiveStage();
+
             // Capture ActorID from LocalPlayer on first frame available
             if (Plugin.Instance.fetchingActorID)
             {
@@ -557,6 +1457,7 @@ namespace BlackveilDpsMeter
                         Plugin.Instance.LocalPlayerActorID = capturedActorID;
                         Plugin.Instance.LocalPlayerStats.ActorID = capturedActorID;
                         Plugin.Instance.fetchingActorID = false;
+                        Plugin.Instance.OnLocalPlayerActorIdCaptured();
                         Debug.Log($"[DPS] ✓ LocalPlayerActorID set to {Plugin.Instance.LocalPlayerActorID}");
                     }
                 }
@@ -580,6 +1481,7 @@ namespace BlackveilDpsMeter
                 {
                     // Add time EVERY frame so the clock is accurate
                     Plugin.Instance.ActiveCombatTime += Time.deltaTime;
+                    Plugin.Instance.TickStageCombatTime(Time.deltaTime);
                 }
             }
             // Safety check: The UI will only update if the plugin successfully captured the start time
@@ -700,7 +1602,37 @@ namespace BlackveilDpsMeter
         }
     }
 
-internal static class HealthDamageLogPatch
+    [HarmonyPatch(typeof(GameManager), "RPC_GameEnd")]
+    internal static class GameEndStageTrackingPatch
+    {
+        [HarmonyPostfix]
+        private static void Postfix()
+        {
+            Plugin.Instance?.FinishCurrentRun();
+        }
+    }
+
+    [HarmonyPatch(typeof(PerkHandler), "RPC_UpgradePerk")]
+    internal static class PerkUpgradeTrackingPatch
+    {
+        [HarmonyPostfix]
+        private static void Postfix(PerkHandler __instance, int perkID)
+        {
+            Plugin.Instance?.RecordLocalPerkUpgrade(__instance, perkID);
+        }
+    }
+
+    [HarmonyPatch(typeof(ChampionTalent), "ActivateInternal")]
+    internal static class ChampionTalentTrackingPatch
+    {
+        [HarmonyPostfix]
+        private static void Postfix(ChampionTalent __instance, bool masterVersion)
+        {
+            Plugin.Instance?.RecordLocalChampionTalent(__instance, masterVersion);
+        }
+    }
+
+    internal static class HealthDamageLogPatch
 {
     internal static void Apply(Harmony harmony)
     {
@@ -1015,88 +1947,5 @@ public class RemoteDamageHook
             
         }
     }
-
-    // Allocate minons correctly to the summoner
-    public class SummonController : MonoBehaviour 
-    {
-        private void Awake() 
-        {
-            Debug.Log("Persistent Summon Hook Controller Active.");
-        }
-
-    }
-    public static class SummonValidationPatches
-    {
-        private const int INVALID_ID = -1;
-
-        internal static void Apply(Harmony harmony)
-        {
-            try
-            {
-                // Patch StatsManager.SpawnerActorID property setter
-                var spawnerActorIdSetter = AccessTools.PropertySetter(typeof(StatsManager), "SpawnerActorID");
-                if (spawnerActorIdSetter != null)
-                {
-                    Debug.Log("[Summon] Successfully patched StatsManager.SpawnerActorID setter.");
-                }
-                else
-                {
-                    Debug.LogWarning("[Summon] Failed to find StatsManager.SpawnerActorID property setter.");
-                }
-
-                // Patch Summon.InitMinionSpawned method
-                var initMinionMethod = AccessTools.Method(typeof(Summon), "InitMinionSpawned");
-                if (initMinionMethod != null)
-                {
-                    harmony.Patch(initMinionMethod,
-                        prefix: new HarmonyMethod(typeof(SummonValidationPatches), nameof(Prefix_InitMinionSpawned)));
-                    Debug.Log("[Summon] Successfully patched Summon.InitMinionSpawned method.");
-                }
-                else
-                {
-                    Debug.LogWarning("[Summon] Failed to find Summon.InitMinionSpawned method.");
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[Summon] Error applying Summon patches: {ex.Message}");
-            }
-        }
-
-        [HarmonyPrefix]
-        [HarmonyPatch(typeof(Summon), "InitMinionSpawned")]
-        public static void Prefix_InitMinionSpawned(Summon __instance, NetworkObject obj)
-        {
-            // 1. Safe extraction of the summoner's stats
-            var summonerStats = Traverse.Create(__instance).Field<StatsManager>("_stats").Value;
-            
-            Debug.Log($"[SummonController] Minion Spawned Triggered: {obj?.name ?? "Unknown Object"} | Summoner: {summonerStats?.name ?? "NULL"}");
-
-            if (obj == null) return;
-
-            // 2. Check if both the summoner and the spawned minion have StatsManager components
-            if (summonerStats != null && obj.TryGetComponent<StatsManager>(out var minionStats))
-            {
-                int ownerID = summonerStats.ActorID;
-                Debug.Log($"[SummonController] Summoner ActorID: {ownerID} | Minion Current SpawnerID: {minionStats.SpawnerActorID}");
-                
-                if (ownerID != INVALID_ID)
-                {
-                    // Use Traverse to set the backing field directly if the property setter is stubborn,
-                    // OR just assign it directly now that the blocking prefix is removed.
-                    minionStats.SpawnerActorID = ownerID;
-                    
-                    Debug.Log($"[SummonController] Successfully assigned SpawnerActorID {ownerID} to {obj.name}");
-                }
-                else
-                {
-                    Debug.LogWarning($"[SummonController] Did not assign ID because Summoner ActorID is INVALID (-1)");
-                }
-            }
-            else
-            {
-                Debug.LogWarning($"[SummonController] Failed to assign: SummonerStats or MinionStats is missing.");
-            }
-        }
-    }
 }
+    

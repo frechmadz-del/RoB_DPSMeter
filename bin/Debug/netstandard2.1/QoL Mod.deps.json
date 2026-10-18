@@ -7,19 +7,22 @@
   "targets": {
     ".NETStandard,Version=v2.1": {},
     ".NETStandard,Version=v2.1/": {
-      "QoL Mod/1.0.1": {
+      "QoL Mod/1.1.1": {
         "dependencies": {
           "0Harmony": "2.10.2.0",
           "Assembly-CSharp": "0.0.0.0",
           "BepInEx.Core": "6.0.0.0",
           "BepInEx.Unity.Mono": "6.0.0.0",
           "Fusion.Runtime": "2.1.1.0",
+          "Newtonsoft.Json": "13.0.0.0",
           "Unity.InputSystem": "1.20.0.0",
+          "Unity.Localization": "0.0.0.0",
           "Unity.TextMeshPro": "0.0.0.0",
           "UnityEngine.CoreModule": "0.0.0.0",
           "UnityEngine": "0.0.0.0",
           "UnityEngine.IMGUIModule": "0.0.0.0",
           "UnityEngine.InputLegacyModule": "0.0.0.0",
+          "UnityEngine.JSONSerializeModule": "0.0.0.0",
           "UnityEngine.PhysicsModule": "0.0.0.0",
           "UnityEngine.TextRenderingModule": "0.0.0.0",
           "UnityEngine.UI": "1.0.0.0",
@@ -70,11 +73,27 @@
           }
         }
       },
+      "Newtonsoft.Json/13.0.0.0": {
+        "runtime": {
+          "Newtonsoft.Json.dll": {
+            "assemblyVersion": "13.0.0.0",
+            "fileVersion": "13.0.3.27908"
+          }
+        }
+      },
       "Unity.InputSystem/1.20.0.0": {
         "runtime": {
           "Unity.InputSystem.dll": {
             "assemblyVersion": "1.20.0.0",
             "fileVersion": "1.20.0.0"
+          }
+        }
+      },
+      "Unity.Localization/0.0.0.0": {
+        "runtime": {
+          "Unity.Localization.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
           }
         }
       },
@@ -113,6 +132,14 @@
       "UnityEngine.InputLegacyModule/0.0.0.0": {
         "runtime": {
           "UnityEngine.InputLegacyModule.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
+      "UnityEngine.JSONSerializeModule/0.0.0.0": {
+        "runtime": {
+          "UnityEngine.JSONSerializeModule.dll": {
             "assemblyVersion": "0.0.0.0",
             "fileVersion": "0.0.0.0"
           }
@@ -494,14 +521,6 @@
           }
         }
       },
-      "UnityEngine.JSONSerializeModule/0.0.0.0": {
-        "runtime": {
-          "UnityEngine.JSONSerializeModule.dll": {
-            "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.0.0.0"
-          }
-        }
-      },
       "UnityEngine.LocalizationModule/0.0.0.0": {
         "runtime": {
           "UnityEngine.LocalizationModule.dll": {
@@ -870,14 +889,6 @@
           }
         }
       },
-      "Newtonsoft.Json/13.0.0.0": {
-        "runtime": {
-          "Newtonsoft.Json.dll": {
-            "assemblyVersion": "13.0.0.0",
-            "fileVersion": "13.0.3.27908"
-          }
-        }
-      },
       "Fusion.Realtime/2.1.1.0": {
         "runtime": {
           "Fusion.Realtime.dll": {
@@ -910,11 +921,11 @@
           }
         }
       },
-      "Unity.Localization/0.0.0.0": {
+      "SauceControl.Blake2Fast/2.0.0.0": {
         "runtime": {
-          "Unity.Localization.dll": {
-            "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.0.0.0"
+          "SauceControl.Blake2Fast.dll": {
+            "assemblyVersion": "2.0.0.0",
+            "fileVersion": "2.0.0.0"
           }
         }
       },
@@ -942,6 +953,14 @@
           }
         }
       },
+      "Photon.Realtime/0.0.0.0": {
+        "runtime": {
+          "Photon.Realtime.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
       "Unity.ResourceManager/0.0.0.0": {
         "runtime": {
           "Unity.ResourceManager.dll": {
@@ -958,14 +977,6 @@
           }
         }
       },
-      "SauceControl.Blake2Fast/2.0.0.0": {
-        "runtime": {
-          "SauceControl.Blake2Fast.dll": {
-            "assemblyVersion": "2.0.0.0",
-            "fileVersion": "2.0.0.0"
-          }
-        }
-      },
       "MoreMountains.Feedbacks.Cinemachine/0.0.0.0": {
         "runtime": {
           "MoreMountains.Feedbacks.Cinemachine.dll": {
@@ -977,14 +988,6 @@
       "Lofelt.NiceVibrations/0.0.0.0": {
         "runtime": {
           "Lofelt.NiceVibrations.dll": {
-            "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.0.0.0"
-          }
-        }
-      },
-      "Photon.Realtime/0.0.0.0": {
-        "runtime": {
-          "Photon.Realtime.dll": {
             "assemblyVersion": "0.0.0.0",
             "fileVersion": "0.0.0.0"
           }
@@ -1019,6 +1022,14 @@
           "PhotonClient.dll": {
             "assemblyVersion": "5.1.16.0",
             "fileVersion": "5.1.16.0"
+          }
+        }
+      },
+      "Unity.Addressables/0.0.0.0": {
+        "runtime": {
+          "Unity.Addressables.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
           }
         }
       },
@@ -1070,14 +1081,6 @@
           }
         }
       },
-      "Unity.Addressables/0.0.0.0": {
-        "runtime": {
-          "Unity.Addressables.dll": {
-            "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.0.0.0"
-          }
-        }
-      },
       "Unity.RenderPipelines.Universal.2D.Runtime/0.0.0.0": {
         "runtime": {
           "Unity.RenderPipelines.Universal.2D.Runtime.dll": {
@@ -1121,7 +1124,7 @@
     }
   },
   "libraries": {
-    "QoL Mod/1.0.1": {
+    "QoL Mod/1.1.1": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
@@ -1151,7 +1154,17 @@
       "serviceable": false,
       "sha512": ""
     },
+    "Newtonsoft.Json/13.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
     "Unity.InputSystem/1.20.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Unity.Localization/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
@@ -1177,6 +1190,11 @@
       "sha512": ""
     },
     "UnityEngine.InputLegacyModule/0.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "UnityEngine.JSONSerializeModule/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
@@ -1416,11 +1434,6 @@
       "serviceable": false,
       "sha512": ""
     },
-    "UnityEngine.JSONSerializeModule/0.0.0.0": {
-      "type": "reference",
-      "serviceable": false,
-      "sha512": ""
-    },
     "UnityEngine.LocalizationModule/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
@@ -1651,11 +1664,6 @@
       "serviceable": false,
       "sha512": ""
     },
-    "Newtonsoft.Json/13.0.0.0": {
-      "type": "reference",
-      "serviceable": false,
-      "sha512": ""
-    },
     "Fusion.Realtime/2.1.1.0": {
       "type": "reference",
       "serviceable": false,
@@ -1676,7 +1684,7 @@
       "serviceable": false,
       "sha512": ""
     },
-    "Unity.Localization/0.0.0.0": {
+    "SauceControl.Blake2Fast/2.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
@@ -1696,6 +1704,11 @@
       "serviceable": false,
       "sha512": ""
     },
+    "Photon.Realtime/0.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
     "Unity.ResourceManager/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
@@ -1706,22 +1719,12 @@
       "serviceable": false,
       "sha512": ""
     },
-    "SauceControl.Blake2Fast/2.0.0.0": {
-      "type": "reference",
-      "serviceable": false,
-      "sha512": ""
-    },
     "MoreMountains.Feedbacks.Cinemachine/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
     },
     "Lofelt.NiceVibrations/0.0.0.0": {
-      "type": "reference",
-      "serviceable": false,
-      "sha512": ""
-    },
-    "Photon.Realtime/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
@@ -1742,6 +1745,11 @@
       "sha512": ""
     },
     "PhotonClient/5.1.16.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Unity.Addressables/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
@@ -1772,11 +1780,6 @@
       "sha512": ""
     },
     "Unity.Timeline/1.0.0.0": {
-      "type": "reference",
-      "serviceable": false,
-      "sha512": ""
-    },
-    "Unity.Addressables/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""

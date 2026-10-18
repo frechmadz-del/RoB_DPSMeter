@@ -15,7 +15,7 @@ public class ModSettingsPage : SettingsBasePage
 
     public enum RarityThreshold
             {
-                // Uncommon = 1,
+                Uncommon = 1,
                 Rare = 2,
                 Epic = 3,
                 Legendary = 4,
@@ -61,6 +61,76 @@ public class ModSettingsPage : SettingsBasePage
 [HarmonyPatch(typeof(SettingsPage), MethodType.Constructor, new Type[] { typeof(PageArgs) })]
 public static class SettingsPage_Constructor_Patch
 {
+    private const float SettingsControlWidth = 500f;
+    private const float SettingsLabelWidth = 350f;
+
+    private static void ApplyCommonControlStyle(VisualElement element)
+    {
+        element.style.marginLeft = 6;
+        element.style.marginTop = 6;
+        element.style.width = SettingsControlWidth;
+    }
+
+    private static void ApplyLabelStyle(VisualElement control, bool isToggle = false)
+    {
+        var label = control.Q<Label>();
+        if (label == null)
+            return;
+
+        label.style.fontSize = 18;
+        label.style.color = Color.white;
+        label.style.unityFontStyleAndWeight = FontStyle.Normal;
+        label.style.marginLeft = 0;
+        label.style.paddingLeft = 0;
+
+        if (isToggle)
+        {
+            label.style.minWidth = SettingsLabelWidth;
+            label.style.width = SettingsLabelWidth;
+        }
+        else
+        {
+            label.style.minWidth = SettingsLabelWidth;
+            label.style.width = SettingsLabelWidth;
+        }
+    }
+
+    private static void ApplyDropdownStyle(DropdownField dropdown)
+    {
+        ApplyCommonControlStyle(dropdown);
+        dropdown.style.flexDirection = FlexDirection.Row;
+        dropdown.style.justifyContent = Justify.SpaceBetween;
+        dropdown.style.alignItems = Align.Center;
+        dropdown.style.height = 32;
+        ApplyLabelStyle(dropdown);
+
+        var textField = dropdown.Q<TextField>();
+        if (textField != null)
+        {
+            textField.style.minWidth = 120;
+            textField.style.flexGrow = 1;
+            textField.style.backgroundColor = new Color(0.8f, 0.8f, 0.8f, 0.85f);
+            textField.style.color = new Color(0.12f, 0.12f, 0.12f, 1f);
+        }
+    }
+
+    private static void ApplyToggleStyle(Toggle toggle)
+    {
+        ApplyCommonControlStyle(toggle);
+        toggle.style.flexDirection = FlexDirection.Row;
+        toggle.style.justifyContent = Justify.SpaceBetween;
+        toggle.style.alignItems = Align.Center;
+        toggle.style.height = 32;
+        ApplyLabelStyle(toggle, true);
+
+        VisualElement checkmark = toggle.Q<VisualElement>("unity-checkmark");
+        if (checkmark != null)
+        {
+            checkmark.style.marginLeft = 8;
+            checkmark.style.marginRight = 0;
+        }
+    }
+
     // Store a static reference to our created dynamic page layer
     public static UIDynamicPageLayer<ModSettingsPage> ModSettingsPageLayer;
 
@@ -102,14 +172,7 @@ public static class SettingsPage_Constructor_Patch
             // --- Toggle: Enable DPS Meter ---
             Toggle dpsToggle = new Toggle("DPS Meter");
             dpsToggle.value = Plugin.ShowDPSMeter;
-            dpsToggle.style.marginLeft = 6;
-            dpsToggle.style.marginTop = 4;
-            var dpsLabel = dpsToggle.Q<Label>();
-            if (dpsLabel != null)
-            {
-                dpsLabel.style.fontSize = 18;
-                dpsLabel.style.color = Color.white;
-            }
+            ApplyToggleStyle(dpsToggle);
             dpsToggle.RegisterValueChangedCallback(evt =>
             {
                 Plugin.ShowDPSMeter = evt.newValue; 
@@ -121,14 +184,7 @@ public static class SettingsPage_Constructor_Patch
             // --- Toggle: Combat Info ---
             Toggle combatInfoToggle = new Toggle("Combat Info");
             combatInfoToggle.value = Plugin.ShowCombatInfo;
-            combatInfoToggle.style.marginLeft = 6;
-            combatInfoToggle.style.marginTop = 4;
-            var combatInfoLabel = combatInfoToggle.Q<Label>();
-            if (combatInfoLabel != null)
-            {
-                combatInfoLabel.style.fontSize = 18;
-                combatInfoLabel.style.color = Color.white;
-            }
+            ApplyToggleStyle(combatInfoToggle);
             combatInfoToggle.RegisterValueChangedCallback(evt =>
             {
                 Plugin.ShowCombatInfo = evt.newValue;
@@ -145,16 +201,7 @@ public static class SettingsPage_Constructor_Patch
             
             // NOTE: Replace "Plugin.SelectedElement" with your actual backing config field/property!
             DropdownField modeDropdown = new DropdownField("Select element for Combat info tracking", modeChoices_element, Plugin.SelectedElement ?? "");
-            modeDropdown.style.marginLeft = 6;
-            modeDropdown.style.marginTop = 8;
-            modeDropdown.style.width = 500; // Gives it clean structure inside UI content
-
-            var dropdownLabel = modeDropdown.Q<Label>();
-            if (dropdownLabel != null)
-            {
-                dropdownLabel.style.fontSize = 18;
-                dropdownLabel.style.color = Color.white;
-            }
+            ApplyDropdownStyle(modeDropdown);
             
             modeDropdown.RegisterValueChangedCallback(evt =>
             {
@@ -168,14 +215,7 @@ public static class SettingsPage_Constructor_Patch
             // --- Toggle: Group DPS ---
             Toggle groupDpsToggle = new Toggle("Group DPS");
             groupDpsToggle.value = Plugin.ShowGroupDPS;
-            groupDpsToggle.style.marginLeft = 6;
-            groupDpsToggle.style.marginTop = 4;
-            var groupDpsLabel = groupDpsToggle.Q<Label>();
-            if (groupDpsLabel != null)
-            {
-                groupDpsLabel.style.fontSize = 18;
-                groupDpsLabel.style.color = Color.white;
-            }
+            ApplyToggleStyle(groupDpsToggle);
             groupDpsToggle.RegisterValueChangedCallback(evt =>
             {
                 Plugin.ShowGroupDPS = evt.newValue;
@@ -208,16 +248,7 @@ public static class SettingsPage_Constructor_Patch
             
             // NOTE: Replace "Plugin.SelectedElement" with your actual backing config field/property!
             DropdownField Dropdown_rarity_mode = new DropdownField("Lootfilter", Choices_rarity_mode, Plugin.SelectedRarityMode ?? "off");
-            Dropdown_rarity_mode.style.marginLeft = 6;
-            Dropdown_rarity_mode.style.marginTop = 8;
-            Dropdown_rarity_mode.style.width = 300; // Gives it clean structure inside UI content
-
-            var dropdownLabel_rarity_mode = Dropdown_rarity_mode.Q<Label>();
-            if (dropdownLabel_rarity_mode != null)
-            {
-                dropdownLabel_rarity_mode.style.fontSize = 18;
-                dropdownLabel_rarity_mode.style.color = Color.white;
-            }
+            ApplyDropdownStyle(Dropdown_rarity_mode);
             
             Dropdown_rarity_mode.RegisterValueChangedCallback(evt =>
             {
@@ -230,16 +261,7 @@ public static class SettingsPage_Constructor_Patch
 
             List<string> pickupModeChoices = new List<string> { "equipment", "item", "both" };
             DropdownField pickupModeDropdown = new DropdownField("Pickup labels", pickupModeChoices, Plugin.SelectedPickupMode);
-            pickupModeDropdown.style.marginLeft = 6;
-            pickupModeDropdown.style.marginTop = 8;
-            pickupModeDropdown.style.width = 300;
-
-            var pickupModeLabel = pickupModeDropdown.Q<Label>();
-            if (pickupModeLabel != null)
-            {
-                pickupModeLabel.style.fontSize = 18;
-                pickupModeLabel.style.color = Color.white;
-            }
+            ApplyDropdownStyle(pickupModeDropdown);
 
             pickupModeDropdown.RegisterValueChangedCallback(evt =>
             {
@@ -248,22 +270,20 @@ public static class SettingsPage_Constructor_Patch
             });
             modsContent_Loot.Add(pickupModeDropdown);
 
-            Toggle currencyToggle = new Toggle("Highlight currency");
-            currencyToggle.value = Plugin.HighlightCurrency;
-            currencyToggle.style.marginLeft = 6;
-            currencyToggle.style.marginTop = 4;
-            var currencyLabel = currencyToggle.Q<Label>();
-            if (currencyLabel != null)
+            foreach (string itemTypeKey in Plugin.GetHighlightItemTypeOptions())
             {
-                currencyLabel.style.fontSize = 18;
-                currencyLabel.style.color = Color.white;
+                Toggle itemHighlightToggle = new Toggle($"Highlight {Plugin.GetHighlightItemTypeDisplayName(itemTypeKey)}");
+                itemHighlightToggle.value = Plugin.IsHighlightTypeEnabled(itemTypeKey);
+                ApplyToggleStyle(itemHighlightToggle);
+
+                itemHighlightToggle.RegisterValueChangedCallback(evt =>
+                {
+                    Plugin.SetHighlightTypeEnabled(itemTypeKey, evt.newValue);
+                    Debug.Log($"[ModSettings] Highlight type '{itemTypeKey}' changed to: {evt.newValue}");
+                });
+
+                modsContent_Loot.Add(itemHighlightToggle);
             }
-            currencyToggle.RegisterValueChangedCallback(evt =>
-            {
-                Plugin.HighlightCurrency = evt.newValue;
-                Debug.Log($"[ModSettings] Highlight currency changed to: {evt.newValue}");
-            });
-            modsContent_Loot.Add(currencyToggle);
 
             List<string> modeChoices_rarity = new List<string>(Enum.GetNames(typeof(ModSettingsPage.RarityThreshold)));
 
@@ -271,16 +291,7 @@ public static class SettingsPage_Constructor_Patch
                                             ?? ModSettingsPage.RarityThreshold.Epic.ToString();
 
             DropdownField equipmentRarityDropdown = new DropdownField("Equipment min rarity", modeChoices_rarity, equipmentInitialValue);
-            equipmentRarityDropdown.style.marginLeft = 6;
-            equipmentRarityDropdown.style.marginTop = 8;
-            equipmentRarityDropdown.style.width = 300;
-
-            var equipmentRarityLabel = equipmentRarityDropdown.Q<Label>();
-            if (equipmentRarityLabel != null)
-            {
-                equipmentRarityLabel.style.fontSize = 18;
-                equipmentRarityLabel.style.color = Color.white;
-            }
+            ApplyDropdownStyle(equipmentRarityDropdown);
 
             equipmentRarityDropdown.RegisterValueChangedCallback(evt =>
             {
@@ -297,16 +308,7 @@ public static class SettingsPage_Constructor_Patch
                                     ?? ModSettingsPage.RarityThreshold.Epic.ToString();
 
             DropdownField itemRarityDropdown = new DropdownField("Item min rarity", modeChoices_rarity, itemInitialValue);
-            itemRarityDropdown.style.marginLeft = 6;
-            itemRarityDropdown.style.marginTop = 8;
-            itemRarityDropdown.style.width = 300;
-
-            var itemRarityLabel = itemRarityDropdown.Q<Label>();
-            if (itemRarityLabel != null)
-            {
-                itemRarityLabel.style.fontSize = 18;
-                itemRarityLabel.style.color = Color.white;
-            }
+            ApplyDropdownStyle(itemRarityDropdown);
 
             itemRarityDropdown.RegisterValueChangedCallback(evt =>
             {

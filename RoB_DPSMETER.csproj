@@ -4,7 +4,7 @@
     <TargetFramework>netstandard2.1</TargetFramework>
     <AssemblyName>QoL Mod</AssemblyName>
     <Description>Quality of Life Mod for Raiders of Blackveil</Description>
-    <Version>1.0.1</Version>
+    <Version>1.1.1</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
@@ -17,6 +17,14 @@
     
     <Reference Include="UnityEngine.CoreModule">
         <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+
+    <Reference Include="UnityEngine.JSONSerializeModule">
+        <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\UnityEngine.JSONSerializeModule.dll</HintPath>
+    </Reference>
+
+    <Reference Include="Newtonsoft.Json">
+        <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\Newtonsoft.Json.dll</HintPath>
     </Reference>
 
     <Reference Include="UnityEngine.UI">
@@ -72,6 +80,10 @@
     
     <Reference Include="UnityEngine.UIElementsModule">
         <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\UnityEngine.UIElementsModule.dll</HintPath>
+    </Reference>
+
+    <Reference Include="Unity.Localization">
+        <HintPath>F:\SteamLibrary\steamapps\common\Raiders of Blackveil\RoB_Data\Managed\Unity.Localization.dll</HintPath>
     </Reference>
     
   </ItemGroup>

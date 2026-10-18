@@ -249,5 +249,46 @@ namespace RaidersOfBlackveilMod
             return (0f, 0f, 0f, 0f, true, 0f);  
             }
         }
+
+        public (float magicPower, float physicalPower, float criticalChance, float criticalDamage, bool isOutOfDanger, float element) GetCombatData()
+        {
+            return FetchCombatData();
+        }
+
+        public float[] GetCombatStatsValues()
+        {
+            try
+            {
+                var stats = StatsManager.GetStatsByActorID(Plugin.Instance.LocalPlayerActorID);
+                if (stats == null || !stats.IsStatsInitialized || stats.Object == null || !stats.Object.IsValid)
+                {
+                    return new float[13];
+                }
+
+                float criticalChance = stats.Attack != null ? stats.Attack.CriticalChanceWithCap : 0f;
+                float criticalDamage = stats.Attack != null ? stats.Attack.CriticalDamagePercentage : 0f;
+                return new[]
+                {
+                    stats.MagicPower,
+                    stats.PhysicalPower,
+                    stats.Shock.DamageMultiplierPCT - 100f,
+                    stats.Burn.DamageMultiplierPCT - 100f,
+                    stats.Chill.DamageMultiplierAgainstFrozenTarget * 100f - 100f,
+                    stats.Poison.DamageMultiplierPCT - 100f,
+                    stats.Bleed.DamageMultiplierPCT - 100f,
+                    stats.Fury.BoostedAttackDamageIncPCT.Value,
+                    stats.Curse.CurseDamageMultiplier * 100f - 100f,
+                    stats.Summon.MinionsDamageMultiplier.Multiplier * 100f - 100f,
+                    stats.Bless.EmpoweredAttackDamageIncrementForUI,
+                    criticalChance,
+                    criticalDamage
+                };
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"[CombatInfo] Error fetching combat stats for ActorID {Plugin.Instance.LocalPlayerActorID}: {exception.Message}");
+                return new float[13];
+            }
+        }
     }
 }
