@@ -458,10 +458,24 @@ namespace BlackveilDpsMeter
             public readonly List<TextMeshProUGUI> LegendLabels = new List<TextMeshProUGUI>();
         }
 
+        private sealed class StageWindowPerkLabel
+        {
+            public int RecordIndex;
+            public RectTransform Root;
+        }
+
         private Canvas _canvas;
         private bool _visible;
         private RectTransform _contentRoot;
         private RectTransform _plotRoot;
+        private RectTransform _stageWindowRoot;
+        private RectTransform _stageWindowViewport;
+        private RectTransform _stageWindowPerkOverlay;
+        private RectTransform _stageWindowContent;
+        private ScrollRect _stageWindowScrollRect;
+        private StageDpsAreaGraphic _stageWindowAreaGraph;
+        private StageDpsLineGraphic _stageWindowLineGraph;
+        private TextMeshProUGUI _stageWindowEmptyMessage;
         private GameObject _combatStatsRoot;
         private RectTransform _perkTableRoot;
         private RectTransform _perkTableContent;
@@ -472,12 +486,18 @@ namespace BlackveilDpsMeter
         private TextMeshProUGUI _yAxisTitle;
         private readonly List<UnityEngine.UI.Button> _sectionButtons = new List<UnityEngine.UI.Button>();
         private readonly List<TextMeshProUGUI> _sectionLabels = new List<TextMeshProUGUI>();
+        private readonly List<UnityEngine.UI.Button> _stageSubtabButtons = new List<UnityEngine.UI.Button>();
+        private readonly List<TextMeshProUGUI> _stageSubtabLabels = new List<TextMeshProUGUI>();
+        private readonly List<TextMeshProUGUI> _stageWindowAxisLabels = new List<TextMeshProUGUI>();
+        private readonly List<GameObject> _stageWindowStageLabels = new List<GameObject>();
+        private readonly List<StageWindowPerkLabel> _stageWindowPerkLabels = new List<StageWindowPerkLabel>();
         private readonly List<GameObject> _chartLabels = new List<GameObject>();
         private readonly List<GameObject> _legendObjects = new List<GameObject>();
         private readonly List<UnityEngine.UI.Button> _combatSubtabButtons = new List<UnityEngine.UI.Button>();
         private readonly List<TextMeshProUGUI> _combatSubtabLabels = new List<TextMeshProUGUI>();
         private readonly List<CombatGraphView> _combatGraphViews = new List<CombatGraphView>();
         private int _selectedCombatSubtab;
+        private int _selectedStageSubtab;
         private int _selectedSection;
 
         private void Start()
@@ -523,7 +543,7 @@ namespace BlackveilDpsMeter
             headerRect.anchoredPosition = Vector2.zero;
             headerRect.sizeDelta = new Vector2(0f, 64f);
 
-            var title = CreateLabel(headerObject.transform, "Dashboard_Title", "Damage Graphs", 28f);
+            var title = CreateLabel(headerObject.transform, "Dashboard_Title", "Run Information Dashboard", 28f);
             title.alignment = TextAlignmentOptions.MidlineLeft;
             title.rectTransform.anchorMin = Vector2.zero;
             title.rectTransform.anchorMax = Vector2.one;
@@ -572,9 +592,12 @@ namespace BlackveilDpsMeter
             _emptyMessage.rectTransform.anchorMin = new Vector2(0.2f, 0.4f);
             _emptyMessage.rectTransform.anchorMax = new Vector2(0.9f, 0.6f);
 
+            CreateStageDpsWindowPanel(content.transform);
             CreateCombatStatsPanel(content.transform);
             CreatePerkTable(content.transform);
             CreateLegend();
+            CreateStageDpsSubtabs(content.transform);
+            Canvas.ForceUpdateCanvases();
             UpdateSelectedSection();
             RefreshStageGraph(Plugin.Instance.StageDpsRecords);
             RefreshCombatStatsGraph(Plugin.Instance.CombatStatsRecords);
@@ -592,10 +615,31 @@ namespace BlackveilDpsMeter
             }
         }
 
+        public void Hide()
+        {
+            _visible = false;
+            if (_canvas != null)
+            {
+                _canvas.enabled = false;
+            }
+        }
+
         public void RefreshStageGraph(IList<StageDpsRecord> records)
         {
             if (_plotRoot == null || _selectedSection != 0)
             {
+                return;
+            }
+
+            RefreshStageDpsWindow(records);
+            if (_selectedStageSubtab != 0)
+            {
+                ClearChildren(_plotRoot);
+                for (int i = 0; i < _chartLabels.Count; i++)
+                {
+                    UnityEngine.Object.Destroy(_chartLabels[i]);
+                }
+                _chartLabels.Clear();
                 return;
             }
 
@@ -675,6 +719,381 @@ namespace BlackveilDpsMeter
                 stageLabel.rectTransform.anchorMax = new Vector2(stageX + labelWidth * 0.5f, 0.305f);
                 SetTextAutoSize(stageLabel, 9f, 14f);
                 _chartLabels.Add(stageLabel.gameObject);
+            }
+        }
+
+        private void CreateStageDpsSubtabs(Transform parent)
+        {
+            CreateStageDpsSubtabButton(parent, 0, "All stages", 0.035f, 0.17f);
+            CreateStageDpsSubtabButton(parent, 1, "20-stage window", 0.18f, 0.36f);
+            UpdateStageDpsSubtabs();
+        }
+
+        private void CreateStageDpsSubtabButton(Transform parent, int subtabIndex, string text, float xMin, float xMax)
+        {
+            var buttonImage = CreateImage(parent, "Stage_DPS_Subtab_Button", GraphUiPalette.Button);
+            buttonImage.raycastTarget = true;
+            SetAnchors(buttonImage.rectTransform, new Vector2(xMin, 0.85f), new Vector2(xMax, 0.92f));
+            var button = buttonImage.gameObject.AddComponent<UnityEngine.UI.Button>();
+            button.targetGraphic = buttonImage;
+            button.onClick.AddListener(() =>
+            {
+                _selectedStageSubtab = subtabIndex;
+                UpdateStageDpsSubtabs();
+                if (_selectedSection == 0)
+                {
+                    RefreshStageGraph(Plugin.Instance.StageDpsRecords);
+                }
+            });
+
+            var label = CreateLabel(buttonImage.transform, "Stage_DPS_Subtab_Label", text, 15f);
+            label.alignment = TextAlignmentOptions.Center;
+            label.rectTransform.anchorMin = Vector2.zero;
+            label.rectTransform.anchorMax = Vector2.one;
+            label.rectTransform.offsetMin = new Vector2(3f, 0f);
+            label.rectTransform.offsetMax = new Vector2(-3f, 0f);
+            SetTextAutoSize(label, 9f, 15f);
+            _stageSubtabButtons.Add(button);
+            _stageSubtabLabels.Add(label);
+        }
+
+        private void CreateStageDpsWindowPanel(Transform parent)
+        {
+            _stageWindowRoot = CreatePanel(parent, "Stage_DPS_Window", GraphUiPalette.Plot);
+            SetAnchors(_stageWindowRoot, new Vector2(0.035f, 0.055f), new Vector2(0.98f, 0.82f));
+
+            var viewportImage = CreateImage(_stageWindowRoot, "Stage_DPS_Window_Viewport", GraphUiPalette.Plot);
+            viewportImage.raycastTarget = true;
+            _stageWindowViewport = viewportImage.rectTransform;
+            SetAnchors(_stageWindowViewport, new Vector2(0.12f, 0.17f), new Vector2(0.97f, 0.83f));
+            _stageWindowViewport.gameObject.AddComponent<RectMask2D>();
+
+            var perkOverlayObject = new GameObject("Stage_DPS_Window_Perk_Overlay");
+            perkOverlayObject.transform.SetParent(_stageWindowRoot, false);
+            _stageWindowPerkOverlay = perkOverlayObject.AddComponent<RectTransform>();
+            const float perkOverlayLeftPadding = 0.015f;
+            SetAnchors(
+                _stageWindowPerkOverlay,
+                new Vector2(_stageWindowViewport.anchorMin.x - perkOverlayLeftPadding * 2f, _stageWindowViewport.anchorMin.y),
+                new Vector2(_stageWindowViewport.anchorMax.x, 1f));
+            perkOverlayObject.AddComponent<RectMask2D>();
+
+            var contentObject = new GameObject("Stage_DPS_Window_Content");
+            contentObject.transform.SetParent(_stageWindowViewport, false);
+            _stageWindowContent = contentObject.AddComponent<RectTransform>();
+            _stageWindowContent.anchorMin = new Vector2(0f, 0f);
+            _stageWindowContent.anchorMax = new Vector2(0f, 1f);
+            _stageWindowContent.pivot = new Vector2(0f, 0.5f);
+
+            _stageWindowScrollRect = _stageWindowRoot.gameObject.AddComponent<ScrollRect>();
+            _stageWindowScrollRect.viewport = _stageWindowViewport;
+            _stageWindowScrollRect.content = _stageWindowContent;
+            _stageWindowScrollRect.horizontal = true;
+            _stageWindowScrollRect.vertical = false;
+            _stageWindowScrollRect.movementType = ScrollRect.MovementType.Clamped;
+            _stageWindowScrollRect.onValueChanged.AddListener(OnStageDpsWindowScrolled);
+
+            var scrollbarImage = CreateImage(_stageWindowRoot, "Stage_DPS_Window_Scrollbar", GraphUiPalette.Header);
+            scrollbarImage.raycastTarget = true;
+            SetAnchors(scrollbarImage.rectTransform, new Vector2(0.12f, 0.08f), new Vector2(0.97f, 0.125f));
+            var scrollbar = scrollbarImage.gameObject.AddComponent<Scrollbar>();
+            scrollbar.direction = Scrollbar.Direction.LeftToRight;
+
+            var handleImage = CreateImage(scrollbarImage.transform, "Stage_DPS_Window_Scrollbar_Handle", GraphUiPalette.Gold);
+            SetAnchors(handleImage.rectTransform, Vector2.zero, Vector2.one);
+            scrollbar.handleRect = handleImage.rectTransform;
+            scrollbar.targetGraphic = handleImage;
+            _stageWindowScrollRect.horizontalScrollbar = scrollbar;
+            _stageWindowScrollRect.horizontalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent;
+            _stageWindowScrollRect.horizontalScrollbarSpacing = -2f;
+
+            var xAxisTitle = CreateLabel(_stageWindowRoot, "Stage_DPS_Window_X_Axis_Title", "Stage", 14f);
+            xAxisTitle.alignment = TextAlignmentOptions.Center;
+            SetAnchors(xAxisTitle.rectTransform, new Vector2(0.12f, 0.015f), new Vector2(0.97f, 0.07f));
+            SetTextAutoSize(xAxisTitle, 9f, 14f);
+
+            var yAxisTitle = CreateLabel(_stageWindowRoot, "Stage_DPS_Window_Y_Axis_Title", "DPS", 14f);
+            yAxisTitle.alignment = TextAlignmentOptions.Center;
+            yAxisTitle.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+            SetAnchors(yAxisTitle.rectTransform, new Vector2(0f, 0.46f), new Vector2(0.1f, 0.54f));
+            SetTextAutoSize(yAxisTitle, 9f, 14f);
+
+            for (int tick = 0; tick <= 4; tick++)
+            {
+                float normalizedY = tick / 4f;
+                float plotY = 0.17f + 0.66f * (0.16f + normalizedY * 0.75f);
+                var tickLabel = CreateLabel(_stageWindowRoot, "Stage_DPS_Window_Axis_Tick", "0", 11f);
+                tickLabel.alignment = TextAlignmentOptions.MidlineRight;
+                tickLabel.color = MutedColor;
+                tickLabel.rectTransform.anchorMin = new Vector2(0.015f, plotY);
+                tickLabel.rectTransform.anchorMax = new Vector2(0.105f, plotY);
+                tickLabel.rectTransform.sizeDelta = new Vector2(0f, 20f);
+                tickLabel.rectTransform.anchoredPosition = new Vector2(0f, -10f);
+                SetTextAutoSize(tickLabel, 8f, 11f);
+                _stageWindowAxisLabels.Add(tickLabel);
+            }
+
+            _stageWindowEmptyMessage = CreateLabel(
+                _stageWindowRoot,
+                "Stage_DPS_Window_Empty_Message",
+                "No stage data yet. Complete a stage to see its DPS.",
+                18f);
+            _stageWindowEmptyMessage.alignment = TextAlignmentOptions.Center;
+            SetAnchors(_stageWindowEmptyMessage.rectTransform, new Vector2(0.15f, 0.4f), new Vector2(0.94f, 0.6f));
+            SetTextAutoSize(_stageWindowEmptyMessage, 11f, 18f);
+            _stageWindowPerkOverlay.SetAsLastSibling();
+        }
+
+        private void RefreshStageDpsWindow(IList<StageDpsRecord> records)
+        {
+            if (_stageWindowContent == null)
+            {
+                return;
+            }
+
+            ClearChildren(_stageWindowContent);
+            ClearChildren(_stageWindowPerkOverlay);
+            _stageWindowStageLabels.Clear();
+            _stageWindowPerkLabels.Clear();
+            _stageWindowAreaGraph = null;
+            _stageWindowLineGraph = null;
+
+            bool hasRecords = records != null && records.Count > 0;
+            _stageWindowEmptyMessage.gameObject.SetActive(!hasRecords);
+            _stageWindowScrollRect.enabled = hasRecords;
+            float viewportWidth = Mathf.Max(1f, _stageWindowViewport.rect.width);
+            float widthMultiplier = hasRecords
+                ? Mathf.Max(1f, (records.Count - 1f) / 19f)
+                : 1f;
+            float contentWidth = viewportWidth * widthMultiplier;
+            _stageWindowContent.sizeDelta = new Vector2(contentWidth, 0f);
+
+            if (hasRecords)
+            {
+                var gridRoot = new GameObject("Stage_DPS_Window_Grid");
+                gridRoot.transform.SetParent(_stageWindowContent, false);
+                var gridRect = gridRoot.AddComponent<RectTransform>();
+                SetAnchors(gridRect, new Vector2(0f, 0.16f), new Vector2(1f, 0.91f));
+                for (int tick = 0; tick <= 4; tick++)
+                {
+                    var gridLine = CreateImage(gridRoot.transform, "Stage_DPS_Window_Grid_Line", GraphUiPalette.Grid);
+                    float normalizedY = tick / 4f;
+                    SetAnchors(gridLine.rectTransform, new Vector2(0f, normalizedY), new Vector2(1f, normalizedY));
+                    gridLine.rectTransform.sizeDelta = new Vector2(0f, 1f);
+                }
+
+                var areaObject = new GameObject("Stage_DPS_Window_Areas");
+                areaObject.transform.SetParent(_stageWindowContent, false);
+                var areaRect = areaObject.AddComponent<RectTransform>();
+                SetAnchors(areaRect, new Vector2(0f, 0.16f), new Vector2(1f, 0.91f));
+                _stageWindowAreaGraph = areaObject.AddComponent<StageDpsAreaGraphic>();
+                _stageWindowAreaGraph.Records = records;
+                _stageWindowAreaGraph.color = Color.white;
+                _stageWindowAreaGraph.raycastTarget = false;
+
+                var lineObject = new GameObject("Stage_DPS_Window_Total_Line");
+                lineObject.transform.SetParent(_stageWindowContent, false);
+                var lineRect = lineObject.AddComponent<RectTransform>();
+                SetAnchors(lineRect, new Vector2(0f, 0.16f), new Vector2(1f, 0.91f));
+                _stageWindowLineGraph = lineObject.AddComponent<StageDpsLineGraphic>();
+                _stageWindowLineGraph.Records = records;
+                _stageWindowLineGraph.color = new Color(0.65f, 0.65f, 0.65f, 0.9f);
+                _stageWindowLineGraph.LineThickness = 1.25f;
+                _stageWindowLineGraph.raycastTarget = false;
+
+                for (int i = 0; i < records.Count; i++)
+                {
+                    var stageLabel = CreateLabel(
+                        _stageWindowContent,
+                        "Stage_DPS_Window_Stage_Label",
+                        records[i].StageNumber.ToString(),
+                        11f);
+                    stageLabel.alignment = TextAlignmentOptions.Center;
+                    stageLabel.color = MutedColor;
+                    float normalizedX = records.Count == 1 ? 0.5f : i / (float)(records.Count - 1);
+                    stageLabel.rectTransform.anchorMin = new Vector2(normalizedX, 0.025f);
+                    stageLabel.rectTransform.anchorMax = new Vector2(normalizedX, 0.13f);
+                    stageLabel.rectTransform.sizeDelta = new Vector2(
+                        Mathf.Min(72f, contentWidth / Mathf.Max(1, records.Count) * 0.9f),
+                        20f);
+                    SetTextAutoSize(stageLabel, 7f, 11f);
+                    _stageWindowStageLabels.Add(stageLabel.gameObject);
+
+                    if (records[i].CollectedPerks.Length > 0)
+                    {
+                        string[] perkLines = BuildPerkTableText(records[i], "\n").Split('\n');
+                        float longestPerkLength = 0f;
+                        for (int perkIndex = 0; perkIndex < records[i].CollectedPerks.Length; perkIndex++)
+                        {
+                            longestPerkLength = Mathf.Max(longestPerkLength, records[i].CollectedPerks[perkIndex].Length);
+                        }
+                        float labelWidth = Mathf.Clamp(longestPerkLength * 8.25f + 12f, 64f, 180f);
+                        const float lineHeight = 22f;
+                        float labelHeight = Mathf.Max(lineHeight, perkLines.Length * lineHeight);
+                        var labelObject = new GameObject("Stage_DPS_Window_Perk_Label");
+                        labelObject.transform.SetParent(_stageWindowPerkOverlay, false);
+                        var labelRoot = labelObject.AddComponent<RectTransform>();
+                        labelRoot.pivot = new Vector2(1f, 0f);
+                        labelRoot.sizeDelta = new Vector2(labelWidth, labelHeight);
+
+                        for (int perkIndex = 0; perkIndex < perkLines.Length; perkIndex++)
+                        {
+                            var perkLine = CreateLabel(labelRoot, "Stage_DPS_Window_Perk_Line", perkLines[perkIndex], 15f);
+                            perkLine.alignment = TextAlignmentOptions.MidlineRight;
+                            perkLine.textWrappingMode = TextWrappingModes.NoWrap;
+                            perkLine.overflowMode = TextOverflowModes.Overflow;
+                            perkLine.color = GraphUiPalette.PerkText;
+                            perkLine.rectTransform.anchorMin = Vector2.one;
+                            perkLine.rectTransform.anchorMax = Vector2.one;
+                            perkLine.rectTransform.pivot = new Vector2(1f, 0.5f);
+                            perkLine.rectTransform.sizeDelta = new Vector2(0f, lineHeight);
+                            perkLine.rectTransform.anchoredPosition = new Vector2(0f, -perkIndex * lineHeight - lineHeight * 0.5f);
+                            perkLine.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 315f);
+                            SetTextAutoSize(perkLine, 10.5f, 15f);
+                        }
+
+                        _stageWindowPerkLabels.Add(new StageWindowPerkLabel
+                        {
+                            RecordIndex = i,
+                            Root = labelRoot
+                        });
+                    }
+                }
+            }
+
+            Canvas.ForceUpdateCanvases();
+            _stageWindowScrollRect.horizontalNormalizedPosition = 1f;
+            UpdateStageDpsWindowAxis(records);
+            _stageWindowViewport.SetAsFirstSibling();
+            _stageWindowPerkOverlay.SetAsLastSibling();
+        }
+
+        private void OnStageDpsWindowScrolled(Vector2 _)
+        {
+            UpdateStageDpsWindowAxis(Plugin.Instance.StageDpsRecords);
+        }
+
+        private void UpdateStageDpsWindowAxis(IList<StageDpsRecord> records)
+        {
+            if (_stageWindowAreaGraph == null || records == null || records.Count == 0)
+            {
+                return;
+            }
+
+            int visibleCount = Mathf.Min(20, records.Count);
+            int firstVisible = records.Count <= visibleCount
+                ? 0
+                : Mathf.RoundToInt((records.Count - visibleCount) * _stageWindowScrollRect.horizontalNormalizedPosition);
+            float maxDps = 0f;
+            for (int i = firstVisible; i < firstVisible + visibleCount; i++)
+            {
+                maxDps = Mathf.Max(maxDps, records[i].Dps);
+            }
+
+            float axisMaximum = Mathf.Max(1f, maxDps * 1.25f);
+            _stageWindowAreaGraph.AxisMaximum = axisMaximum;
+            _stageWindowLineGraph.AxisMaximum = axisMaximum;
+            _stageWindowAreaGraph.SetVerticesDirty();
+            _stageWindowLineGraph.SetVerticesDirty();
+            for (int tick = 0; tick < _stageWindowAxisLabels.Count; tick++)
+            {
+                _stageWindowAxisLabels[tick].text = (axisMaximum * tick / 4f).ToString("F0");
+            }
+            var placedPerkLabels = new List<RectTransform>();
+            for (int i = 0; i < _stageWindowPerkLabels.Count; i++)
+            {
+                StageWindowPerkLabel perkLabel = _stageWindowPerkLabels[i];
+                StageDpsRecord record = records[perkLabel.RecordIndex];
+                float normalizedX = records.Count == 1
+                    ? 0.5f
+                    : perkLabel.RecordIndex / (float)(records.Count - 1);
+                float plotY = 0.16f + 0.75f * Mathf.Clamp01(record.Dps / axisMaximum);
+                float baseY = _stageWindowViewport.rect.height * plotY / _stageWindowPerkOverlay.rect.height;
+                RectTransform labelRect = perkLabel.Root;
+                labelRect.anchorMin = new Vector2(0f, baseY);
+                labelRect.anchorMax = new Vector2(0f, baseY);
+
+                bool hasClearPosition = false;
+                float leftPadding = _stageWindowViewport.rect.width - _stageWindowPerkOverlay.rect.width;
+                for (float verticalOffset = 5f; verticalOffset <= _stageWindowPerkOverlay.rect.height; verticalOffset += 12f)
+                {
+                    labelRect.anchoredPosition = new Vector2(
+                        normalizedX * _stageWindowContent.rect.width + _stageWindowContent.anchoredPosition.x - leftPadding,
+                        verticalOffset);
+                    if (!IsStagePerkLabelOverlapping(labelRect, placedPerkLabels, 8f))
+                    {
+                        hasClearPosition = true;
+                        break;
+                    }
+                }
+
+                if (!hasClearPosition)
+                {
+                    labelRect.anchoredPosition = new Vector2(
+                    normalizedX * _stageWindowContent.rect.width + _stageWindowContent.anchoredPosition.x - leftPadding,
+                    _stageWindowPerkOverlay.rect.height);
+                }
+                placedPerkLabels.Add(labelRect);
+            }
+        }
+
+        private static bool IsStagePerkLabelOverlapping(
+            RectTransform candidate,
+            IList<RectTransform> placedLabels,
+            float spacing)
+        {
+            Vector2 candidateCenter = GetStagePerkLabelCenter(candidate);
+            float candidateHalfWidth = candidate.rect.width * 0.5f + spacing;
+            float candidateHalfHeight = candidate.rect.height * 0.5f + spacing;
+
+            for (int i = 0; i < placedLabels.Count; i++)
+            {
+                RectTransform placed = placedLabels[i];
+                Vector2 centerDelta = GetStagePerkLabelCenter(placed) - candidateCenter;
+                Vector2 localDelta = Quaternion.Inverse(candidate.localRotation) * centerDelta;
+                if (Mathf.Abs(localDelta.x) < candidateHalfWidth + placed.rect.width * 0.5f &&
+                    Mathf.Abs(localDelta.y) < candidateHalfHeight + placed.rect.height * 0.5f)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static Vector2 GetStagePerkLabelCenter(RectTransform label)
+        {
+            Vector2 pivotToCenter = new Vector2(
+                (0.5f - label.pivot.x) * label.rect.width,
+                (0.5f - label.pivot.y) * label.rect.height);
+            return (Vector2)label.localPosition + (Vector2)(label.localRotation * pivotToCenter);
+        }
+
+        private void UpdateStageDpsSubtabs()
+        {
+            bool showAllStages = _selectedSection == 0 && _selectedStageSubtab == 0;
+            bool showWindow = _selectedSection == 0 && _selectedStageSubtab == 1;
+            _plotRoot.gameObject.SetActive(showAllStages);
+            _xAxisTitle.gameObject.SetActive(showAllStages);
+            _yAxisTitle.gameObject.SetActive(showAllStages);
+            _stageWindowRoot.gameObject.SetActive(showWindow);
+            _emptyMessage.gameObject.SetActive(showAllStages && Plugin.Instance.StageDpsRecords.Count == 0);
+
+            for (int i = 0; i < _chartLabels.Count; i++)
+            {
+                _chartLabels[i].SetActive(showAllStages);
+            }
+            for (int i = 0; i < _legendObjects.Count; i++)
+            {
+                _legendObjects[i].SetActive(showAllStages);
+            }
+            for (int i = 0; i < _stageSubtabButtons.Count; i++)
+            {
+                _stageSubtabButtons[i].gameObject.SetActive(_selectedSection == 0);
+                _stageSubtabButtons[i].image.color = i == _selectedStageSubtab
+                    ? GraphUiPalette.SelectedButton
+                    : GraphUiPalette.Button;
+                _stageSubtabLabels[i].color = i == _selectedStageSubtab ? AccentColor : GraphUiPalette.Text;
             }
         }
 
@@ -885,53 +1304,77 @@ namespace BlackveilDpsMeter
             }
 
             ClearChildren(_perkTableContent);
-            bool hasRecords = records != null && records.Count > 0;
-            _perkTableEmptyMessage.gameObject.SetActive(!hasRecords);
-            if (!hasRecords)
+            StageDpsRecord preStageRecord = Plugin.Instance.PreStagePerksRecord;
+            bool hasPreStagePerks = preStageRecord != null && preStageRecord.CollectedPerks.Length > 0;
+            bool hasStagePerks = false;
+            if (records != null)
+            {
+                for (int i = 0; i < records.Count; i++)
+                {
+                    if (records[i].CollectedPerks.Length > 0)
+                    {
+                        hasStagePerks = true;
+                        break;
+                    }
+                }
+            }
+
+            bool hasPerks = hasPreStagePerks || hasStagePerks;
+            _perkTableEmptyMessage.gameObject.SetActive(!hasPerks);
+            if (!hasPerks)
             {
                 _perkTableEmptyMessage.text = "Complete a stage to see perk pickups.";
                 return;
             }
 
-            for (int i = 0; i < records.Count; i++)
+            int rowIndex = 0;
+            if (hasPreStagePerks)
+            {
+                CreatePerkTableRow(preStageRecord, rowIndex++);
+            }
+
+            for (int i = 0; records != null && i < records.Count; i++)
             {
                 StageDpsRecord record = records[i];
-
-                // Skip rows that have no collected perks
-                if (record.CollectedPerks == null || record.CollectedPerks.Length == 0)
+                if (record.CollectedPerks.Length == 0)
                 {
                     continue;
                 }
-                var rowImage = CreateImage(
-                    _perkTableContent,
-                    "Perk_Stage_Row",
-                    i % 2 == 0 ? GraphUiPalette.Button : GraphUiPalette.Panel);
-                var rowRect = rowImage.rectTransform;
-                string perksText = BuildPerkTableText(record);
-                var layoutElement = rowImage.gameObject.AddComponent<LayoutElement>();
-
-                var stageLabel = CreateLabel(rowImage.transform, "Perk_Stage_Number", "Stage " + record.StageNumber, 14f);
-                SetPerkTableCell(stageLabel, 0f, 0.15f, TextAlignmentOptions.MidlineLeft);
-
-                var perksLabel = CreateLabel(rowImage.transform, "Perk_Stage_Perks", perksText, 14f);
-                perksLabel.textWrappingMode = TextWrappingModes.Normal;
-                perksLabel.overflowMode = TextOverflowModes.Masking;
-                SetPerkTableCell(perksLabel, 0.15f, 1f, TextAlignmentOptions.MidlineLeft);
-
-                float rowWidth = _perkTableContent.rect.width;
-                if (rowWidth <= 0f)
-                {
-                    rowWidth = _perkTableRoot.rect.width * 0.96f;
-                }
-                float perksWidth = Mathf.Max(1f, rowWidth * 0.85f - 24f);
-                float rowHeight = Mathf.Max(56f, perksLabel.GetPreferredValues(perksText, perksWidth, 0f).y + 16f);
-                rowRect.sizeDelta = new Vector2(0f, rowHeight);
-                layoutElement.minHeight = rowHeight;
-                layoutElement.preferredHeight = rowHeight;
+                CreatePerkTableRow(record, rowIndex++);
             }
         }
 
-        private static string BuildPerkTableText(StageDpsRecord record)
+        private void CreatePerkTableRow(StageDpsRecord record, int rowIndex)
+        {
+            var rowImage = CreateImage(
+                _perkTableContent,
+                "Perk_Stage_Row",
+                rowIndex % 2 == 0 ? GraphUiPalette.Button : GraphUiPalette.Panel);
+            var rowRect = rowImage.rectTransform;
+            string perksText = BuildPerkTableText(record);
+            var layoutElement = rowImage.gameObject.AddComponent<LayoutElement>();
+
+            var stageLabel = CreateLabel(rowImage.transform, "Perk_Stage_Number", "Stage " + record.StageNumber, 14f);
+            SetPerkTableCell(stageLabel, 0f, 0.15f, TextAlignmentOptions.MidlineLeft);
+
+            var perksLabel = CreateLabel(rowImage.transform, "Perk_Stage_Perks", perksText, 14f);
+            perksLabel.textWrappingMode = TextWrappingModes.Normal;
+            perksLabel.overflowMode = TextOverflowModes.Masking;
+            SetPerkTableCell(perksLabel, 0.15f, 1f, TextAlignmentOptions.MidlineLeft);
+
+            float rowWidth = _perkTableContent.rect.width;
+            if (rowWidth <= 0f)
+            {
+                rowWidth = _perkTableRoot.rect.width * 0.96f;
+            }
+            float perksWidth = Mathf.Max(1f, rowWidth * 0.85f - 24f);
+            float rowHeight = Mathf.Max(56f, perksLabel.GetPreferredValues(perksText, perksWidth, 0f).y + 16f);
+            rowRect.sizeDelta = new Vector2(0f, rowHeight);
+            layoutElement.minHeight = rowHeight;
+            layoutElement.preferredHeight = rowHeight;
+        }
+
+        private static string BuildPerkTableText(StageDpsRecord record, string separator = ", ")
         {
             if (record.CollectedPerks.Length == 0)
             {
@@ -954,11 +1397,21 @@ namespace BlackveilDpsMeter
                     : upgradeLevel == 1 ? "+" : "++";
                 string talentVersion = record.MasterTalents[i] ? " (Master)" : string.Empty;
                 string colorHex = ColorUtility.ToHtmlStringRGB(perkColor);
+                string perkName = (record.CollectedPerks[i] ?? string.Empty)
+                    .Trim()
+                    .Trim('[', ']')
+                    .TrimEnd('.')
+                    .Trim();
+                if (perkName.StartsWith("Perkname.", StringComparison.OrdinalIgnoreCase))
+                {
+                    perkName = perkName.Substring("Perkname.".Length);
+                }
+                perkName = perkName.Replace("_", " ").Trim();
                 formattedPerks[i] = "<color=#" + colorHex + ">" +
-                    record.CollectedPerks[i] + talentVersion + upgradeMarker + "</color>";
+                    perkName + talentVersion + upgradeMarker + "</color>";
             }
 
-            return string.Join(", ", formattedPerks);
+            return string.Join(separator, formattedPerks);
         }
 
         private void CreatePerkTable(Transform parent)
@@ -1218,6 +1671,7 @@ namespace BlackveilDpsMeter
             {
                 RefreshCombatStatsGraph(Plugin.Instance.CombatStatsRecords);
             }
+            UpdateStageDpsSubtabs();
         }
 
         private static RectTransform CreatePanel(Transform parent, string objectName, Color color)

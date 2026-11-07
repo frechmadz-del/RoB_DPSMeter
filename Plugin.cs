@@ -37,6 +37,7 @@ namespace BlackveilDpsMeter
     public sealed class GraphHistoryData
     {
         public int Version = 1;
+        public StageDpsHistoryData PreStageRecord;
         public StageDpsHistoryData[] StageRecords = Array.Empty<StageDpsHistoryData>();
         public CombatStatsHistoryData[] CombatStatsRecords = Array.Empty<CombatStatsHistoryData>();
     }
@@ -77,6 +78,7 @@ namespace BlackveilDpsMeter
         public float LastHitTime = -1f; // out of fight timer
         public readonly List<StageDpsRecord> StageDpsRecords = new List<StageDpsRecord>();
         public readonly List<CombatStatsRecord> CombatStatsRecords = new List<CombatStatsRecord>();
+        public StageDpsRecord PreStagePerksRecord { get; private set; }
         private string _currentStageSceneName;
         private ulong _currentStageSceneHandle;
         private float _currentStageCombatTime;
@@ -549,6 +551,7 @@ namespace BlackveilDpsMeter
         private class HotkeyRunner : MonoBehaviour
         {   
             private bool _isKeyHeld = false; // Our custom debounce
+            private bool _isEscapeHeld;
             private void Update()
             {   
                 var keyboard = UnityEngine.InputSystem.Keyboard.current;
@@ -556,6 +559,13 @@ namespace BlackveilDpsMeter
                 {
                     return;
                 }
+
+                bool escapePressed = keyboard.escapeKey.isPressed;
+                if (escapePressed && !_isEscapeHeld)
+                {
+                    GetComponent<GraphDashboardWindow>()?.Hide();
+                }
+                _isEscapeHeld = escapePressed;
 
                 bool ui_pressed = keyboard.pKey.isPressed;
                 bool controlPressed = keyboard.leftCtrlKey.isPressed || keyboard.rightCtrlKey.isPressed;
@@ -675,9 +685,41 @@ namespace BlackveilDpsMeter
                 _stageBaselinePerkUpgradeLevels[perk.PerkID] = upgradeLevel;
                 if (isNewlyObserved && StageDpsRecords.Count == 0 && perk.IsWithEquipment)
                 {
-                    AddStagePerk(perk, upgradeLevel);
+                    AddPreStagePerk(perk, upgradeLevel);
                 }
             }
+        }
+
+        private void AddPreStagePerk(PerkDescriptor perk, int upgradeLevel)
+        {
+            string perkName = GetPerkDisplayName(perk);
+            if (string.IsNullOrWhiteSpace(perkName))
+            {
+                return;
+            }
+
+            var existing = PreStagePerksRecord;
+            var perks = existing != null ? new List<string>(existing.CollectedPerks) : new List<string>();
+            var perkIds = existing != null ? new List<int>(existing.CollectedPerkIds) : new List<int>();
+            var upgradeLevels = existing != null ? new List<int>(existing.PerkUpgradeLevels) : new List<int>();
+            var perkTalents = existing != null ? new List<bool>(existing.PerkTalents) : new List<bool>();
+            var masterTalents = existing != null ? new List<bool>(existing.MasterTalents) : new List<bool>();
+            perks.Add(perkName);
+            perkIds.Add(perk.PerkID);
+            upgradeLevels.Add(Mathf.Clamp(upgradeLevel, 0, 2));
+            perkTalents.Add(perk.IsTalentPerk);
+            masterTalents.Add(false);
+            PreStagePerksRecord = new StageDpsRecord(
+                0,
+                "Pre-stage items",
+                new PlayerStats(),
+                0f,
+                perks.ToArray(),
+                upgradeLevels.ToArray(),
+                perkTalents.ToArray(),
+                masterTalents.ToArray(),
+                perkIds.ToArray());
+            _runRecordedPerkIds.Add(perk.PerkID);
         }
 
         private void UnbindLocalPerkHandler()
@@ -916,6 +958,7 @@ namespace BlackveilDpsMeter
                 CombatStatsRecords.Clear();
                 _runRecordedPerkIds.Clear();
                 _legacyRunRecordedPerkNames.Clear();
+                PreStagePerksRecord = null;
                 _currentStagePerks.Clear();
                 _currentStagePerkIds.Clear();
                 _currentStagePerkUpgradeLevels.Clear();
@@ -1080,6 +1123,7 @@ namespace BlackveilDpsMeter
                 }
 
                 StageDpsRecords.Clear();
+                PreStagePerksRecord = null;
                 _runRecordedPerkIds.Clear();
                 _legacyRunRecordedPerkNames.Clear();
                 if (history.StageRecords != null)
@@ -1140,6 +1184,22 @@ namespace BlackveilDpsMeter
                     }
                 }
 
+                PreStagePerksRecord = history.PreStageRecord != null &&
+                    history.PreStageRecord.CollectedPerks != null &&
+                    history.PreStageRecord.CollectedPerks.Length > 0
+                    ? CreateStageDpsRecord(history.PreStageRecord)
+                    : null;
+                if (PreStagePerksRecord != null && history.PreStageRecord.CollectedPerkIds != null)
+                {
+                    for (int i = 0; i < history.PreStageRecord.CollectedPerkIds.Length; i++)
+                    {
+                        if (history.PreStageRecord.CollectedPerkIds[i] >= 0)
+                        {
+                            _runRecordedPerkIds.Add(history.PreStageRecord.CollectedPerkIds[i]);
+                        }
+                    }
+                }
+
                 CombatStatsRecords.Clear();
                 if (history.CombatStatsRecords != null)
                 {
@@ -1186,20 +1246,12 @@ namespace BlackveilDpsMeter
             try
             {
                 var history = new GraphHistoryData();
+                if (PreStagePerksRecord != null)
+                {
+                    history.PreStageRecord = CreateStageDpsHistoryData(PreStagePerksRecord);
+                }
                 history.StageRecords = StageDpsRecords
-                    .Select(record => new StageDpsHistoryData
-                    {
-                        StageNumber = record.StageNumber,
-                        SceneName = record.SceneName,
-                        TotalDamage = record.TotalDamage,
-                        CombatTime = record.CombatTime,
-                        DamageByType = (float[])record.DamageByType.Clone(),
-                        CollectedPerks = (string[])record.CollectedPerks.Clone(),
-                        CollectedPerkIds = (int[])record.CollectedPerkIds.Clone(),
-                        PerkUpgradeLevels = (int[])record.PerkUpgradeLevels.Clone(),
-                        PerkTalents = (bool[])record.PerkTalents.Clone(),
-                        MasterTalents = (bool[])record.MasterTalents.Clone()
-                    })
+                    .Select(CreateStageDpsHistoryData)
                     .ToArray();
 
                 history.CombatStatsRecords = CombatStatsRecords
@@ -1240,6 +1292,51 @@ namespace BlackveilDpsMeter
             {
                 Logger.LogError($"[DPS] Failed to serialize graph history to '{path}': {exception}");
             }
+        }
+
+        private static StageDpsRecord CreateStageDpsRecord(StageDpsHistoryData record)
+        {
+            var stats = new PlayerStats
+            {
+                TotalDamage = record.TotalDamage,
+                TotalBurn = record.DamageByType != null && record.DamageByType.Length > 0 ? record.DamageByType[0] : 0f,
+                TotalPoison = record.DamageByType != null && record.DamageByType.Length > 1 ? record.DamageByType[1] : 0f,
+                TotalBleed = record.DamageByType != null && record.DamageByType.Length > 2 ? record.DamageByType[2] : 0f,
+                TotalShock = record.DamageByType != null && record.DamageByType.Length > 3 ? record.DamageByType[3] : 0f,
+                TotalRoot = record.DamageByType != null && record.DamageByType.Length > 4 ? record.DamageByType[4] : 0f,
+                TotalFrost = record.DamageByType != null && record.DamageByType.Length > 5 ? record.DamageByType[5] : 0f,
+                TotalCurse = record.DamageByType != null && record.DamageByType.Length > 6 ? record.DamageByType[6] : 0f,
+                TotalMinion = record.DamageByType != null && record.DamageByType.Length > 7 ? record.DamageByType[7] : 0f,
+                TotalBless = record.DamageByType != null && record.DamageByType.Length > 8 ? record.DamageByType[8] : 0f,
+                TotalFury = record.DamageByType != null && record.DamageByType.Length > 9 ? record.DamageByType[9] : 0f
+            };
+            return new StageDpsRecord(
+                record.StageNumber,
+                string.IsNullOrEmpty(record.SceneName) ? "Pre-stage items" : record.SceneName,
+                stats,
+                record.CombatTime,
+                record.CollectedPerks,
+                record.PerkUpgradeLevels,
+                record.PerkTalents,
+                record.MasterTalents,
+                record.CollectedPerkIds);
+        }
+
+        private static StageDpsHistoryData CreateStageDpsHistoryData(StageDpsRecord record)
+        {
+            return new StageDpsHistoryData
+            {
+                StageNumber = record.StageNumber,
+                SceneName = record.SceneName,
+                TotalDamage = record.TotalDamage,
+                CombatTime = record.CombatTime,
+                DamageByType = (float[])record.DamageByType.Clone(),
+                CollectedPerks = (string[])record.CollectedPerks.Clone(),
+                CollectedPerkIds = (int[])record.CollectedPerkIds.Clone(),
+                PerkUpgradeLevels = (int[])record.PerkUpgradeLevels.Clone(),
+                PerkTalents = (bool[])record.PerkTalents.Clone(),
+                MasterTalents = (bool[])record.MasterTalents.Clone()
+            };
         }
 
         private void OnApplicationQuit()
@@ -1882,20 +1979,31 @@ public class RemoteDamageHook
                         {
                             case UserAction.Attack:
                             {
-                                if (damageDesc.blessedAttack)
-                                {
-                                    float multiplier = 1f + (stats.Bless.EmpoweredAttackDamageIncrementPCT / 100f);
-                                    float originalDamage = damageValue / multiplier;
-                                    localStats.TotalBless += damageValue - originalDamage;
-                                    
-                                    Debug.Log($"[DPS] Credited {stats.Bless.EmpoweredAttackDamageIncrementPCT}% Blessed Damage");
-
-                                }
+                                // helper for fury and blessed damage double tracking
+                                float remainingDamage = damageValue;
                                 if (damageDesc.furyAttack)
-                                {   
+                                {
                                     float multiplier = 1f + (stats.Fury.BoostedAttackDamageIncPCT.Value / 100f);
                                     float originalDamage = damageValue / multiplier;
                                     localStats.TotalFury += damageValue - originalDamage;
+                                    float furyDamageAmount = remainingDamage - originalDamage;
+                                    remainingDamage -= furyDamageAmount;
+                                    
+                                    Debug.Log($"[DPS] Credited {stats.Fury.BoostedAttackDamageIncPCT.Value}% Fury Damage");
+
+                                }
+                                if (damageDesc.blessedAttack && damageDesc.furyAttack)
+                                {
+                                    float multiplier = 1f + (stats.Bless.EmpoweredAttackDamageIncrementPCT / 100f);
+                                    float originalDamage = remainingDamage / multiplier;
+                                    localStats.TotalBless += remainingDamage - originalDamage;
+                                }
+
+                                if (!damageDesc.furyAttack && damageDesc.blessedAttack)
+                                {   
+                                    float multiplier = 1f + (stats.Bless.EmpoweredAttackDamageIncrementPCT / 100f);
+                                    float originalDamage = damageValue / multiplier;
+                                    localStats.TotalBless += damageValue - originalDamage;
                                 }
                             }
                         break;

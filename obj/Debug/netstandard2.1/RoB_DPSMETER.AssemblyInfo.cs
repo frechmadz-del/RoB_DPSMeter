@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyDescriptionAttribute("Quality of Life Mod for Raiders of Blackveil")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.1.1.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.1.1+824080e5dfc812eaa92b40cd4be24eb619dba5f9")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.1.1+01aef6215280adb0f6a1fdf850d596285655bbdd")]
 [assembly: System.Reflection.AssemblyProductAttribute("QoL Mod")]
 [assembly: System.Reflection.AssemblyTitleAttribute("QoL Mod")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.1.1.0")]
