@@ -674,7 +674,7 @@ namespace BlackveilDpsMeter
         {
             foreach (PerkDescriptor perk in handler.CollectedPerks)
             {
-                if (perk == null)
+                if (perk == null || perk.IsRegularStatPerk)
                 {
                     continue;
                 }
@@ -692,6 +692,11 @@ namespace BlackveilDpsMeter
 
         private void AddPreStagePerk(PerkDescriptor perk, int upgradeLevel)
         {
+            if (perk == null || perk.IsRegularStatPerk)
+            {
+                return;
+            }
+
             string perkName = GetPerkDisplayName(perk);
             if (string.IsNullOrWhiteSpace(perkName))
             {
@@ -733,7 +738,9 @@ namespace BlackveilDpsMeter
 
         private void HandleLocalPerkCollected(PerkDescriptor perk)
         {
-            if (perk == null || string.IsNullOrWhiteSpace(_currentStageSceneName))
+            if (perk == null ||
+                perk.IsRegularStatPerk ||
+                string.IsNullOrWhiteSpace(_currentStageSceneName))
             {
                 return;
             }
@@ -758,12 +765,17 @@ namespace BlackveilDpsMeter
 
         private void AddStagePerk(PerkDescriptor perk, int upgradeLevel)
         {
+            if (perk == null || perk.IsRegularStatPerk)
+            {
+                return;
+            }
+
             AddStagePerk(perk, GetPerkDisplayName(perk), upgradeLevel);
         }
 
         private void AddStagePerk(PerkDescriptor perk, string perkName, int upgradeLevel)
         {
-            if (string.IsNullOrWhiteSpace(perkName))
+            if (perk == null || perk.IsRegularStatPerk || string.IsNullOrWhiteSpace(perkName))
             {
                 return;
             }
@@ -836,6 +848,11 @@ namespace BlackveilDpsMeter
             if (perk == null)
             {
                 Logger.LogWarning($"[Perks] Could not resolve upgraded perk ID {perkId}.");
+                return;
+            }
+
+            if (perk.IsRegularStatPerk)
+            {
                 return;
             }
 
@@ -1449,19 +1466,19 @@ namespace BlackveilDpsMeter
 
             UnityEngine.UI.Image frameImage = _panelObj.AddComponent<UnityEngine.UI.Image>();
             // A "Bronze/Gold" color to match the image metal
-            frameImage.color = new Color(0.45f, 0.35f, 0.2f, 1f); 
+            frameImage.color = new Color(0.34f, 0.27f, 0.17f, 0.84f);
 
             RectTransform panelRect = frameImage.GetComponent<RectTransform>();
             panelRect.anchorMin = new Vector2(1, 0.5f);
             panelRect.anchorMax = new Vector2(1, 0.5f);
             panelRect.pivot = new Vector2(1, 0.5f);
             panelRect.anchoredPosition = new Vector2(-10, 0);
-            panelRect.sizeDelta = new Vector2(220, 220);
+            panelRect.sizeDelta = new Vector2(194, 198);
 
             // Add an Outline component to give it the "raised" metal edge look
             var outline = _panelObj.AddComponent<UnityEngine.UI.Outline>();
-            outline.effectColor = new Color(0.15f, 0.1f, 0.05f, 1f); // Darker shadow
-            outline.effectDistance = new Vector2(2, -2);
+            outline.effectColor = new Color(0.08f, 0.06f, 0.04f, 0.65f);
+            outline.effectDistance = new Vector2(1, -1);
 
             // 2b. Create the Inner Background (The Teal/Green area)
             GameObject innerArea = new GameObject("Inner_Area");
@@ -1469,21 +1486,21 @@ namespace BlackveilDpsMeter
 
             UnityEngine.UI.Image innerImage = innerArea.AddComponent<UnityEngine.UI.Image>();
             // Dark Teal/Green color from your image
-            innerImage.color = new Color(0f, 0f, 0f, 0.95f); 
+            innerImage.color = new Color(0.025f, 0.022f, 0.018f, 0.78f);
 
             RectTransform innerRect = innerImage.rectTransform;
             innerRect.anchorMin = Vector2.zero;
             innerRect.anchorMax = Vector2.one;
             // Padding of 5 pixels creates the "Border" thickness
-            innerRect.offsetMin = new Vector2(5, 5);
-            innerRect.offsetMax = new Vector2(-5, -5);
+            innerRect.offsetMin = new Vector2(4, 4);
+            innerRect.offsetMax = new Vector2(-4, -4);
 
             // 3. Create the TEXT Display (As child of the inner area)
             GameObject textObj = new GameObject("DPS_Text_Display");
             textObj.transform.SetParent(innerArea.transform, false);
 
             _uiText = textObj.AddComponent<TextMeshProUGUI>();
-            _uiText.fontSize = 16;
+            _uiText.fontSize = 12;
             _uiText.color = Color.white;
             _uiText.alignment = TextAlignmentOptions.Center;
 
@@ -1516,8 +1533,8 @@ namespace BlackveilDpsMeter
                 Debug.LogWarning("[DPS] Could not find LiberationSans SDF, using TMP default.");
             }
 
-            _uiText.fontSize = 14;
-            _uiText.color = Color.yellow;
+            _uiText.fontSize = 12;
+            _uiText.color = new Color(0.85f, 0.81f, 0.71f, 1f);
             _uiText.alignment = TextAlignmentOptions.TopLeft; // TMP uses different alignment names
 
             // TMP handles overflow automatically, but we can set specific modes:
@@ -1594,8 +1611,12 @@ namespace BlackveilDpsMeter
                     
                     float dps_Total = Plugin.Instance.LocalPlayerStats.TotalDamage / displayTime;
                     // Use a small helper function to keep the code clean
-                    string FormatLine(string label, float val) => 
-                        $"{label}: {val / displayTime:F1} ({(val / displayTime / dps_Total) * 100:F1}%)";
+                    string FormatLine(string label, float val)
+                    {
+                        float damageDps = val / displayTime;
+                        float percentage = dps_Total > 0f ? damageDps / dps_Total * 100f : 0f;
+                        return $"{label}: {damageDps:F1} ({percentage:F1}%)";
+                    }
                     // Use a small helper function for colors
                     string ColorText(string text, string hex) => $"<color={hex}>{text}</color>";
                     // --- CLIPPED BAR LOGIC ---
@@ -1640,17 +1661,17 @@ namespace BlackveilDpsMeter
 
                     string fullContent = string.Join("\n", 
                         visualBar,
-                        $"<size=+4>{ColorText($"Total DPS: {dps_Total:F1}", "#dbdbdb")}</size>",
-                        ColorText(FormatLine("Burn", Plugin.Instance.LocalPlayerStats.TotalBurn), "#f17728"),
-                        ColorText(FormatLine("Poison", Plugin.Instance.LocalPlayerStats.TotalPoison), "#952db8"),
-                        ColorText(FormatLine("Bleed", Plugin.Instance.LocalPlayerStats.TotalBleed), "#c94a46"),
-                        ColorText(FormatLine("Shock", Plugin.Instance.LocalPlayerStats.TotalShock), "#b7a93f"),
-                        ColorText(FormatLine("Root", Plugin.Instance.LocalPlayerStats.TotalRoot), "#be927e"),
-                        ColorText(FormatLine("Frost", Plugin.Instance.LocalPlayerStats.TotalFrost), "#57cccc"),
-                        ColorText(FormatLine("Curse", Plugin.Instance.LocalPlayerStats.TotalCurse), "#267b5b"),
-                        ColorText(FormatLine("Minion", Plugin.Instance.LocalPlayerStats.TotalMinion), "#f06ee9"),
-                        ColorText(FormatLine("Bless", Plugin.Instance.LocalPlayerStats.TotalBless), "#d8f19c"),
-                        ColorText(FormatLine("Fury", Plugin.Instance.LocalPlayerStats.TotalFury), "#64210f")
+                        $"<size=+3>{ColorText($"Total DPS: {dps_Total:F1}", "#C9B47E")}</size>",
+                        ColorText(FormatLine("Burn", Plugin.Instance.LocalPlayerStats.TotalBurn), "#C9793B"),
+                        ColorText(FormatLine("Poison", Plugin.Instance.LocalPlayerStats.TotalPoison), "#8A5E9E"),
+                        ColorText(FormatLine("Bleed", Plugin.Instance.LocalPlayerStats.TotalBleed), "#AC5C55"),
+                        ColorText(FormatLine("Shock", Plugin.Instance.LocalPlayerStats.TotalShock), "#A99A49"),
+                        ColorText(FormatLine("Root", Plugin.Instance.LocalPlayerStats.TotalRoot), "#A88F7B"),
+                        ColorText(FormatLine("Frost", Plugin.Instance.LocalPlayerStats.TotalFrost), "#5D9EA0"),
+                        ColorText(FormatLine("Curse", Plugin.Instance.LocalPlayerStats.TotalCurse), "#4E806D"),
+                        ColorText(FormatLine("Minion", Plugin.Instance.LocalPlayerStats.TotalMinion), "#AA6E9F"),
+                        ColorText(FormatLine("Bless", Plugin.Instance.LocalPlayerStats.TotalBless), "#AAB982"),
+                        ColorText(FormatLine("Fury", Plugin.Instance.LocalPlayerStats.TotalFury), "#815544")
                     );
                     _uiText.text = $"<width=75%>{fullContent}</width>";
                 }

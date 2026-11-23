@@ -56,18 +56,18 @@ namespace RaidersOfBlackveilMod
             _panelObj.layer = 2;
 
             UnityEngine.UI.Image frameImage = _panelObj.AddComponent<UnityEngine.UI.Image>();
-            frameImage.color = new Color(0.45f, 0.35f, 0.2f, 1f); 
+            frameImage.color = new Color(0.34f, 0.27f, 0.17f, 0.84f);
 
             RectTransform panelRect = frameImage.rectTransform;
             panelRect.anchorMin = new Vector2(1, 0);
             panelRect.anchorMax = new Vector2(1, 0);
             panelRect.pivot = new Vector2(1, 0);
             panelRect.anchoredPosition = new Vector2(-10, 210); 
-            panelRect.sizeDelta = new Vector2(190, 120); // Width x Height
+            panelRect.sizeDelta = new Vector2(180, 104);
 
             var outline = _panelObj.AddComponent<Outline>();
-            outline.effectColor = new Color(0.15f, 0.1f, 0.05f, 1f);
-            outline.effectDistance = new Vector2(2, -2);
+            outline.effectColor = new Color(0.08f, 0.06f, 0.04f, 0.65f);
+            outline.effectDistance = new Vector2(1, -1);
 
             // 2b. Inner Area
             GameObject innerArea = new GameObject("Modded_Group_Inner_Area");
@@ -75,7 +75,7 @@ namespace RaidersOfBlackveilMod
             innerArea.layer = 2;
 
             UnityEngine.UI.Image innerImage = innerArea.AddComponent<UnityEngine.UI.Image>();
-            innerImage.color = new Color(0f, 0f, 0f, 0.95f);
+            innerImage.color = new Color(0.025f, 0.022f, 0.018f, 0.78f);
 
             RectTransform innerRect = innerImage.rectTransform;
             innerRect.anchorMin = Vector2.zero;
@@ -89,7 +89,7 @@ namespace RaidersOfBlackveilMod
             textObj.layer = 2;
 
             _uiText = textObj.AddComponent<TextMeshProUGUI>();
-            _uiText.fontSize = 12;
+            _uiText.fontSize = 11;
             _uiText.color = Color.white;
             _uiText.alignment = TextAlignmentOptions.TopLeft;
 
@@ -195,7 +195,7 @@ namespace RaidersOfBlackveilMod
             }
 
             // Build the display text
-            string displayText = $"<b><color=#A0FFA0>GROUP DPS: {groupTotalDPS:F1}</color></b>\n";
+            string displayText = $"<b><color=#C9B47E>GROUP DPS: {groupTotalDPS:F1}</color></b>\n";
 
             // Add bar and stats for each player
             for (int i = 0; i < groupData.Count; i++)
@@ -205,9 +205,9 @@ namespace RaidersOfBlackveilMod
                 // Color code by slot
                 string barColor = i switch
                 {
-                    0 => "#5F8FFF", // Blue for slot 0
-                    1 => "#5FFF5F", // Green for slot 1
-                    2 => "#FF5F5F", // Red for slot 2
+                    0 => "#7186A8", // Muted blue for slot 0
+                    1 => "#829B72", // Muted green for slot 1
+                    2 => "#A66D63", // Muted red for slot 2
                     _ => "#CCCCCC"
                 };
 

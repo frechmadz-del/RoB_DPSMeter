@@ -110,7 +110,6 @@ F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Newtons
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Fusion.Realtime.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Fusion.Unity.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Fusion.Sockets.dll
-F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Unity.VisualScripting.Core.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Unity.Localization.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\websocket-sharp.dll
 F:\ModdingWorkbench\RoB_DPSMeter\RoB_DPSMeter-1\bin\Debug\netstandard2.1\Unity.Collections.dll

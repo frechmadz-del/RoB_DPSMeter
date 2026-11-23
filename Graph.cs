@@ -1,32 +1,34 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using RaidersOfBlackveilMod;
+using RR.Game.Perk;
 
 namespace BlackveilDpsMeter
 {
     internal static class GraphUiPalette
     {
-        internal static readonly Color Window = new Color(0.055f, 0.052f, 0.047f, 0.98f);
-        internal static readonly Color Header = new Color(0.12f, 0.105f, 0.074f, 1f);
-        internal static readonly Color Panel = new Color(0.075f, 0.07f, 0.061f, 0.92f);
-        internal static readonly Color Sidebar = new Color(0.047f, 0.045f, 0.041f, 1f);
-        internal static readonly Color Plot = new Color(0.025f, 0.026f, 0.028f, 0.92f);
-        internal static readonly Color Border = new Color(0.48f, 0.39f, 0.22f, 1f);
-        internal static readonly Color Gold = new Color(0.82f, 0.69f, 0.39f, 1f);
-        internal static readonly Color Text = new Color(0.86f, 0.84f, 0.78f, 1f);
-        internal static readonly Color MutedText = new Color(0.62f, 0.6f, 0.55f, 1f);
-        internal static readonly Color PerkText = new Color(0.92f, 0.91f, 0.87f, 1f);
-        internal static readonly Color PerkUpgradeOne = new Color(0.62f, 0.82f, 0.65f, 1f);
-        internal static readonly Color PerkUpgradeTwo = new Color(0.96f, 0.62f, 0.32f, 1f);
-        internal static readonly Color PerkTalent = new Color(0.58f, 0.76f, 0.96f, 1f);
-        internal static readonly Color Button = new Color(0.12f, 0.115f, 0.102f, 1f);
-        internal static readonly Color SelectedButton = new Color(0.23f, 0.185f, 0.105f, 1f);
-        internal static readonly Color Grid = new Color(0.39f, 0.35f, 0.27f, 0.48f);
-        internal static readonly Color TotalArea = new Color(0.58f, 0.59f, 0.58f, 0.78f);
-        internal static readonly Color TotalLine = new Color(0.94f, 0.91f, 0.81f, 1f);
+        internal static readonly Color Window = new Color(0.045f, 0.038f, 0.029f, 0.96f);
+        internal static readonly Color Header = new Color(0.14f, 0.11f, 0.068f, 1f);
+        internal static readonly Color Panel = new Color(0.075f, 0.062f, 0.045f, 0.94f);
+        internal static readonly Color Sidebar = new Color(0.043f, 0.036f, 0.028f, 1f);
+        internal static readonly Color Plot = new Color(0.032f, 0.029f, 0.024f, 0.92f);
+        internal static readonly Color Border = new Color(0.39f, 0.30f, 0.16f, 0.9f);
+        internal static readonly Color Gold = new Color(0.76f, 0.64f, 0.39f, 1f);
+        internal static readonly Color Text = new Color(0.83f, 0.79f, 0.69f, 1f);
+        internal static readonly Color MutedText = new Color(0.57f, 0.53f, 0.45f, 1f);
+        internal static readonly Color PerkText = new Color(0.84f, 0.80f, 0.71f, 1f);
+        internal static readonly Color PerkUpgradeOne = new Color(0.58f, 0.69f, 0.49f, 1f);
+        internal static readonly Color PerkUpgradeTwo = new Color(0.78f, 0.52f, 0.30f, 1f);
+        internal static readonly Color PerkTalent = new Color(0.48f, 0.64f, 0.68f, 1f);
+        internal static readonly Color Button = new Color(0.105f, 0.087f, 0.061f, 1f);
+        internal static readonly Color SelectedButton = new Color(0.25f, 0.19f, 0.095f, 1f);
+        internal static readonly Color Grid = new Color(0.34f, 0.28f, 0.19f, 0.38f);
+        internal static readonly Color TotalArea = new Color(0.56f, 0.49f, 0.35f, 0.56f);
+        internal static readonly Color TotalLine = new Color(0.82f, 0.74f, 0.56f, 1f);
     }
 
     public static class StageDamageTypes
@@ -38,16 +40,16 @@ namespace BlackveilDpsMeter
 
         public static readonly Color[] Colors =
         {
-            new Color(0.95f, 0.35f, 0.14f, 0.72f),
-            new Color(0.61f, 0.2f, 0.8f, 0.72f),
-            new Color(0.82f, 0.26f, 0.25f, 0.72f),
-            new Color(0.88f, 0.76f, 0.18f, 0.72f),
-            new Color(0.71f, 0.52f, 0.43f, 0.72f),
-            new Color(0.25f, 0.77f, 0.85f, 0.72f),
-            new Color(0.12f, 0.52f, 0.37f, 0.72f),
-            new Color(0.9f, 0.37f, 0.78f, 0.72f),
-            new Color(0.85f, 0.95f, 0.61f, 0.72f),
-            new Color(0.52f, 0.2f, 0.12f, 0.72f)
+            new Color(0.72f, 0.36f, 0.20f, 0.66f),
+            new Color(0.49f, 0.34f, 0.55f, 0.66f),
+            new Color(0.68f, 0.33f, 0.28f, 0.66f),
+            new Color(0.68f, 0.57f, 0.27f, 0.66f),
+            new Color(0.57f, 0.44f, 0.34f, 0.66f),
+            new Color(0.32f, 0.56f, 0.58f, 0.66f),
+            new Color(0.29f, 0.47f, 0.37f, 0.66f),
+            new Color(0.62f, 0.37f, 0.55f, 0.66f),
+            new Color(0.59f, 0.63f, 0.41f, 0.66f),
+            new Color(0.46f, 0.30f, 0.22f, 0.66f)
         };
 
         public static float[] GetDamageValues(PlayerStats stats)
@@ -183,7 +185,7 @@ namespace BlackveilDpsMeter
             if (Records.Count == 1)
             {
                 float value = maximum ? Records[0].MaximumValues[statIndex] : Records[0].Values[statIndex];
-                AddMarker(vertexHelper, rect.center.x, GetY(rect, value), seriesColor);
+                AddMarker(vertexHelper, rect.center.x, GetY(rect, value), seriesColor, maximum);
                 return;
             }
 
@@ -196,10 +198,10 @@ namespace BlackveilDpsMeter
                 float startY = GetY(rect, startValue);
                 float endY = GetY(rect, endValue);
                 AddLine(vertexHelper, new Vector2(startX, startY), new Vector2(endX, endY), seriesColor);
-                AddMarker(vertexHelper, startX, startY, seriesColor);
+                AddMarker(vertexHelper, startX, startY, seriesColor, maximum);
                 if (i == Records.Count - 2)
                 {
-                    AddMarker(vertexHelper, endX, endY, seriesColor);
+                    AddMarker(vertexHelper, endX, endY, seriesColor, maximum);
                 }
             }
         }
@@ -216,15 +218,37 @@ namespace BlackveilDpsMeter
             AddQuad(vertexHelper, start - normal, end - normal, end + normal, start + normal, lineColor);
         }
 
-        private void AddMarker(VertexHelper vertexHelper, float x, float y, Color markerColor)
+        private void AddMarker(VertexHelper vertexHelper, float x, float y, Color markerColor, bool maximum)
         {
-            const float markerSize = 3.5f;
-            AddQuad(vertexHelper,
-                new Vector2(x - markerSize, y - markerSize),
-                new Vector2(x + markerSize, y - markerSize),
-                new Vector2(x + markerSize, y + markerSize),
-                new Vector2(x - markerSize, y + markerSize),
-                markerColor);
+            const float markerSize = 4f;
+            if (maximum)
+            {
+                AddQuad(vertexHelper,
+                    new Vector2(x, y + markerSize),
+                    new Vector2(x + markerSize, y),
+                    new Vector2(x, y - markerSize),
+                    new Vector2(x - markerSize, y),
+                    markerColor);
+                return;
+            }
+
+            const int circleSegments = 8;
+            int centerIndex = vertexHelper.currentVertCount;
+            AddVertex(vertexHelper, new Vector2(x, y), markerColor);
+            for (int i = 0; i < circleSegments; i++)
+            {
+                float angle = (i + 1) * Mathf.PI * 2f / circleSegments;
+                AddVertex(vertexHelper, new Vector2(
+                    x + Mathf.Cos(angle) * markerSize,
+                    y + Mathf.Sin(angle) * markerSize), markerColor);
+            }
+
+            for (int i = 0; i < circleSegments; i++)
+            {
+                int current = centerIndex + 1 + i;
+                int next = centerIndex + 1 + (i + 1) % circleSegments;
+                vertexHelper.AddTriangle(centerIndex, current, next);
+            }
         }
 
         private static void AddQuad(VertexHelper vertexHelper, Vector2 bottomLeft, Vector2 bottomRight, Vector2 topRight, Vector2 topLeft, Color quadColor)
@@ -432,19 +456,19 @@ namespace BlackveilDpsMeter
         };
         private static readonly Color[] CombatStatColors =
         {
-            new Color(0.57f, 0.72f, 0.88f, 1f),
-            new Color(0.84f, 0.58f, 0.48f, 1f),
-            new Color(0.88f, 0.76f, 0.18f, 1f),
-            new Color(0.95f, 0.35f, 0.14f, 1f),
-            new Color(0.25f, 0.77f, 0.85f, 1f),
-            new Color(0.61f, 0.2f, 0.8f, 1f),
-            new Color(0.82f, 0.26f, 0.25f, 1f),
-            new Color(0.52f, 0.2f, 0.12f, 1f),
-            new Color(0.12f, 0.52f, 0.37f, 1f),
-            new Color(0.9f, 0.37f, 0.78f, 1f),
-            new Color(0.85f, 0.95f, 0.61f, 1f),
-            new Color(0.72f, 0.57f, 0.79f, 1f),
-            new Color(0.54f, 0.73f, 0.61f, 1f)
+            new Color(0.55f, 0.65f, 0.72f, 1f),
+            new Color(0.72f, 0.52f, 0.42f, 1f),
+            new Color(0.68f, 0.57f, 0.27f, 1f),
+            new Color(0.72f, 0.36f, 0.20f, 1f),
+            new Color(0.32f, 0.56f, 0.58f, 1f),
+            new Color(0.49f, 0.34f, 0.55f, 1f),
+            new Color(0.68f, 0.33f, 0.28f, 1f),
+            new Color(0.46f, 0.30f, 0.22f, 1f),
+            new Color(0.29f, 0.47f, 0.37f, 1f),
+            new Color(0.62f, 0.37f, 0.55f, 1f),
+            new Color(0.59f, 0.63f, 0.41f, 1f),
+            new Color(0.62f, 0.50f, 0.65f, 1f),
+            new Color(0.48f, 0.64f, 0.52f, 1f)
         };
 
         private sealed class CombatGraphView
@@ -452,10 +476,12 @@ namespace BlackveilDpsMeter
             public GameObject Root;
             public CombatStatsLineGraphic Graph;
             public int[] StatIndexes;
+            public bool HasSelectableSeries;
             public TextMeshProUGUI MinimumLabel;
             public TextMeshProUGUI MaximumLabel;
             public RectTransform StageLabels;
             public readonly List<TextMeshProUGUI> LegendLabels = new List<TextMeshProUGUI>();
+            public readonly List<UnityEngine.UI.Button> LegendButtons = new List<UnityEngine.UI.Button>();
         }
 
         private sealed class StageWindowPerkLabel
@@ -496,6 +522,8 @@ namespace BlackveilDpsMeter
         private readonly List<UnityEngine.UI.Button> _combatSubtabButtons = new List<UnityEngine.UI.Button>();
         private readonly List<TextMeshProUGUI> _combatSubtabLabels = new List<TextMeshProUGUI>();
         private readonly List<CombatGraphView> _combatGraphViews = new List<CombatGraphView>();
+        private readonly HashSet<int> _selectedElementStatIndexes = new HashSet<int>(
+            new[] { 2, 3, 4, 5, 6, 7, 8, 9, 10 });
         private int _selectedCombatSubtab;
         private int _selectedStageSubtab;
         private int _selectedSection;
@@ -724,8 +752,8 @@ namespace BlackveilDpsMeter
 
         private void CreateStageDpsSubtabs(Transform parent)
         {
-            CreateStageDpsSubtabButton(parent, 0, "All stages", 0.035f, 0.17f);
-            CreateStageDpsSubtabButton(parent, 1, "20-stage window", 0.18f, 0.36f);
+            CreateStageDpsSubtabButton(parent, 0, "All stages", 0.035f, 0.195f);
+            CreateStageDpsSubtabButton(parent, 1, "20-stage window", 0.205f, 0.365f);
             UpdateStageDpsSubtabs();
         }
 
@@ -736,6 +764,8 @@ namespace BlackveilDpsMeter
             SetAnchors(buttonImage.rectTransform, new Vector2(xMin, 0.85f), new Vector2(xMax, 0.92f));
             var button = buttonImage.gameObject.AddComponent<UnityEngine.UI.Button>();
             button.targetGraphic = buttonImage;
+            button.transition = UnityEngine.UI.Selectable.Transition.None;
+            AddButtonOutline(buttonImage);
             button.onClick.AddListener(() =>
             {
                 _selectedStageSubtab = subtabIndex;
@@ -919,13 +949,17 @@ namespace BlackveilDpsMeter
                     SetTextAutoSize(stageLabel, 7f, 11f);
                     _stageWindowStageLabels.Add(stageLabel.gameObject);
 
-                    if (records[i].CollectedPerks.Length > 0)
+                    if (HasVisiblePerks(records[i]))
                     {
-                        string[] perkLines = BuildPerkTableText(records[i], "\n").Split('\n');
+                        StageDpsRecord record = records[i];
+                        string[] perkLines = BuildPerkTableText(record, "\n").Split('\n');
                         float longestPerkLength = 0f;
-                        for (int perkIndex = 0; perkIndex < records[i].CollectedPerks.Length; perkIndex++)
+                        for (int perkIndex = 0; perkIndex < record.CollectedPerks.Length; perkIndex++)
                         {
-                            longestPerkLength = Mathf.Max(longestPerkLength, records[i].CollectedPerks[perkIndex].Length);
+                            if (ShouldDisplayPerk(record, perkIndex))
+                            {
+                                longestPerkLength = Mathf.Max(longestPerkLength, record.CollectedPerks[perkIndex].Length);
+                            }
                         }
                         float labelWidth = Mathf.Clamp(longestPerkLength * 8.25f + 12f, 64f, 180f);
                         const float lineHeight = 22f;
@@ -1104,17 +1138,24 @@ namespace BlackveilDpsMeter
             SetAnchors(panel, new Vector2(0.035f, 0.1f), new Vector2(0.98f, 0.84f));
 
             string[] subtabNames = { "Power", "Elements", "Criticals" };
+            const float tabLeft = 0.025f;
+            const float tabRight = 0.975f;
+            const float tabGap = 0.012f;
+            float tabWidth = (tabRight - tabLeft - tabGap * (subtabNames.Length - 1)) / subtabNames.Length;
             for (int i = 0; i < subtabNames.Length; i++)
             {
                 int subtabIndex = i;
                 var buttonImage = CreateImage(panel, "Combat_Stats_Subtab_Button", GraphUiPalette.Button);
                 buttonImage.raycastTarget = true;
-                buttonImage.rectTransform.anchorMin = new Vector2(0.025f + i * 0.19f, 0.895f);
-                buttonImage.rectTransform.anchorMax = new Vector2(0.205f + i * 0.19f, 0.975f);
+                float tabMin = tabLeft + i * (tabWidth + tabGap);
+                buttonImage.rectTransform.anchorMin = new Vector2(tabMin, 0.895f);
+                buttonImage.rectTransform.anchorMax = new Vector2(tabMin + tabWidth, 0.975f);
                 buttonImage.rectTransform.offsetMin = Vector2.zero;
                 buttonImage.rectTransform.offsetMax = Vector2.zero;
                 var button = buttonImage.gameObject.AddComponent<UnityEngine.UI.Button>();
                 button.targetGraphic = buttonImage;
+                button.transition = UnityEngine.UI.Selectable.Transition.None;
+                AddButtonOutline(buttonImage);
                 button.onClick.AddListener(() =>
                 {
                     _selectedCombatSubtab = subtabIndex;
@@ -1134,7 +1175,7 @@ namespace BlackveilDpsMeter
             var powerView = CreateCombatGraphView(panel, "Power", new[] { 0, 1 }, new Vector2(0.025f, 0.04f), new Vector2(0.975f, 0.9f));
             _combatGraphViews.Add(powerView);
 
-            var elementView = CreateCombatGraphView(panel, "Element Bonuses", new[] { 2, 3, 4, 5, 6, 7, 8, 9, 10 }, new Vector2(0.025f, 0.04f), new Vector2(0.975f, 0.9f));
+            var elementView = CreateCombatGraphView(panel, "Element Bonuses", new[] { 2, 3, 4, 5, 6, 7, 8, 9, 10 }, new Vector2(0.025f, 0.04f), new Vector2(0.975f, 0.9f), true);
             _combatGraphViews.Add(elementView);
 
             var criticalRoot = CreatePanel(panel, "Combat_Critical_Graphs", GraphUiPalette.Plot);
@@ -1157,7 +1198,8 @@ namespace BlackveilDpsMeter
             string titleText,
             int[] statIndexes,
             Vector2 anchorMin,
-            Vector2 anchorMax)
+            Vector2 anchorMax,
+            bool selectableSeries = false)
         {
             var rootRect = CreatePanel(parent, "Combat_Chart_View", GraphUiPalette.Button);
             rootRect.GetComponent<UnityEngine.UI.Image>().color = GraphUiPalette.Button;
@@ -1166,7 +1208,8 @@ namespace BlackveilDpsMeter
             var view = new CombatGraphView
             {
                 Root = rootRect.gameObject,
-                StatIndexes = statIndexes
+                StatIndexes = statIndexes,
+                HasSelectableSeries = selectableSeries
             };
 
             var title = CreateLabel(rootRect, "Combat_Chart_Title", titleText, 17f);
@@ -1177,21 +1220,57 @@ namespace BlackveilDpsMeter
             title.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 90f);
             SetTextAutoSize(title, 11f, 17f);
 
-            int legendColumns = statIndexes.Length > 4 ? 4 : statIndexes.Length;
-            float legendStart = 0.23f;
-            float legendWidth = 0.14f;
-            float legendRowHeight = 0.045f;
+            int legendColumns = selectableSeries ? 3 : (statIndexes.Length > 4 ? 4 : statIndexes.Length);
+            float legendStart = selectableSeries ? 0.2f : 0.23f;
+            float legendWidth = selectableSeries ? 0.16f : 0.14f;
+            float legendRowHeight = selectableSeries ? 0.05f : 0.045f;
             for (int i = 0; i < statIndexes.Length; i++)
             {
-                var legend = CreateLabel(rootRect, "Combat_Chart_Legend", CombatStatNames[statIndexes[i]], 11f);
-                legend.alignment = TextAlignmentOptions.MidlineLeft;
-                legend.color = CombatStatColors[statIndexes[i]];
+                int statIndex = statIndexes[i];
                 int column = i % legendColumns;
                 int row = i / legendColumns;
                 float rowBottom = 0.015f + row * legendRowHeight;
-                legend.rectTransform.anchorMin = new Vector2(legendStart + column * legendWidth, rowBottom);
-                legend.rectTransform.anchorMax = new Vector2(legendStart + (column + 1) * legendWidth, rowBottom + legendRowHeight);
-                SetTextAutoSize(legend, 7f, 11f);
+                RectTransform legendParent = rootRect;
+                if (selectableSeries)
+                {
+                    var legendButtonImage = CreateImage(rootRect, "Combat_Element_Filter_Button", GraphUiPalette.Button);
+                    legendButtonImage.raycastTarget = true;
+                    legendButtonImage.rectTransform.anchorMin = new Vector2(legendStart + column * legendWidth, rowBottom);
+                    legendButtonImage.rectTransform.anchorMax = new Vector2(legendStart + (column + 1) * legendWidth, rowBottom + legendRowHeight);
+                    legendButtonImage.rectTransform.offsetMin = new Vector2(2f, 2f);
+                    legendButtonImage.rectTransform.offsetMax = new Vector2(-2f, -2f);
+                    var legendButton = legendButtonImage.gameObject.AddComponent<UnityEngine.UI.Button>();
+                    legendButton.targetGraphic = legendButtonImage;
+                    legendButton.transition = UnityEngine.UI.Selectable.Transition.None;
+                    AddButtonOutline(legendButtonImage);
+                    legendButton.onClick.AddListener(() =>
+                    {
+                        if (!_selectedElementStatIndexes.Add(statIndex))
+                        {
+                            _selectedElementStatIndexes.Remove(statIndex);
+                        }
+                        RefreshCombatStatsGraph(Plugin.Instance.CombatStatsRecords);
+                    });
+                    view.LegendButtons.Add(legendButton);
+                    legendParent = legendButtonImage.rectTransform;
+                }
+
+                var legend = CreateLabel(legendParent, "Combat_Chart_Legend", CombatStatNames[statIndex], selectableSeries ? 10f : 11f);
+                legend.alignment = TextAlignmentOptions.MidlineLeft;
+                legend.color = CombatStatColors[statIndex];
+                if (selectableSeries)
+                {
+                    legend.rectTransform.anchorMin = Vector2.zero;
+                    legend.rectTransform.anchorMax = Vector2.one;
+                    legend.rectTransform.offsetMin = new Vector2(8f, 1f);
+                    legend.rectTransform.offsetMax = new Vector2(-4f, -1f);
+                }
+                else
+                {
+                    legend.rectTransform.anchorMin = new Vector2(legendStart + column * legendWidth, rowBottom);
+                    legend.rectTransform.anchorMax = new Vector2(legendStart + (column + 1) * legendWidth, rowBottom + legendRowHeight);
+                }
+                SetTextAutoSize(legend, selectableSeries ? 8f : 7f, selectableSeries ? 10f : 11f);
                 view.LegendLabels.Add(legend);
             }
 
@@ -1262,6 +1341,7 @@ namespace BlackveilDpsMeter
                 return;
             }
 
+            records = records ?? Array.Empty<CombatStatsRecord>();
             bool hasRecords = records.Count > 0;
             _emptyMessage.gameObject.SetActive(!hasRecords);
             _emptyMessage.text = hasRecords ? string.Empty : "Complete a stage to see combat stats by stage.";
@@ -1274,19 +1354,45 @@ namespace BlackveilDpsMeter
             {
                 var view = _combatGraphViews[viewIndex];
                 var graph = view.Graph;
+                if (graph == null || view.MinimumLabel == null || view.MaximumLabel == null || view.StageLabels == null)
+                {
+                    Debug.LogWarning($"[DPS] Skipping incomplete combat stats graph view '{view.Root?.name}'.");
+                    continue;
+                }
+
                 graph.Records = records;
+                int[] visibleStatIndexes = view.HasSelectableSeries
+                    ? view.StatIndexes.Where(_selectedElementStatIndexes.Contains).ToArray()
+                    : view.StatIndexes;
+                graph.StatIndexes = visibleStatIndexes;
+                graph.SeriesColors = visibleStatIndexes
+                    .Select(index => CombatStatColors[index])
+                    .ToArray();
+
+                for (int legendIndex = 0; legendIndex < view.LegendButtons.Count; legendIndex++)
+                {
+                    int statIndex = view.StatIndexes[legendIndex];
+                    bool selected = _selectedElementStatIndexes.Contains(statIndex);
+                    view.LegendButtons[legendIndex].targetGraphic.color = selected
+                        ? Color.Lerp(GraphUiPalette.Button, CombatStatColors[statIndex], 0.2f)
+                        : GraphUiPalette.Button;
+                    view.LegendLabels[legendIndex].color = selected
+                        ? CombatStatColors[statIndex]
+                        : GraphUiPalette.MutedText;
+                }
+
                 float maximum = 0f;
                 for (int recordIndex = 0; recordIndex < records.Count; recordIndex++)
                 {
-                    for (int metric = 0; metric < view.StatIndexes.Length; metric++)
+                    for (int metric = 0; metric < visibleStatIndexes.Length; metric++)
                     {
-                        int statIndex = view.StatIndexes[metric];
+                        int statIndex = visibleStatIndexes[metric];
                         maximum = Mathf.Max(maximum, Mathf.Max(records[recordIndex].Values[statIndex], records[recordIndex].MaximumValues[statIndex]));
                     }
                 }
                 float padding = Mathf.Max(0.5f, maximum * 0.1f);
                 graph.AxisMinimum = 0f;
-                graph.AxisMaximum = hasRecords ? maximum + padding : 1f;
+                graph.AxisMaximum = hasRecords && visibleStatIndexes.Length > 0 ? maximum + padding : 1f;
                 graph.SetVerticesDirty();
 
                 string unit = view.StatIndexes[0] < 2 ? string.Empty : "%";
@@ -1305,13 +1411,13 @@ namespace BlackveilDpsMeter
 
             ClearChildren(_perkTableContent);
             StageDpsRecord preStageRecord = Plugin.Instance.PreStagePerksRecord;
-            bool hasPreStagePerks = preStageRecord != null && preStageRecord.CollectedPerks.Length > 0;
+            bool hasPreStagePerks = HasVisiblePerks(preStageRecord);
             bool hasStagePerks = false;
             if (records != null)
             {
                 for (int i = 0; i < records.Count; i++)
                 {
-                    if (records[i].CollectedPerks.Length > 0)
+                    if (HasVisiblePerks(records[i]))
                     {
                         hasStagePerks = true;
                         break;
@@ -1336,7 +1442,7 @@ namespace BlackveilDpsMeter
             for (int i = 0; records != null && i < records.Count; i++)
             {
                 StageDpsRecord record = records[i];
-                if (record.CollectedPerks.Length == 0)
+                if (!HasVisiblePerks(record))
                 {
                     continue;
                 }
@@ -1376,14 +1482,19 @@ namespace BlackveilDpsMeter
 
         private static string BuildPerkTableText(StageDpsRecord record, string separator = ", ")
         {
-            if (record.CollectedPerks.Length == 0)
+            if (record == null || record.CollectedPerks == null)
             {
-                return "No perks collected";
+                return string.Empty;
             }
 
-            var formattedPerks = new string[record.CollectedPerks.Length];
+            var formattedPerks = new List<string>();
             for (int i = 0; i < record.CollectedPerks.Length; i++)
             {
+                if (!ShouldDisplayPerk(record, i))
+                {
+                    continue;
+                }
+
                 int upgradeLevel = Mathf.Clamp(record.PerkUpgradeLevels[i], 0, 2);
                 Color perkColor = record.PerkTalents[i]
                     ? GraphUiPalette.PerkTalent
@@ -1407,11 +1518,48 @@ namespace BlackveilDpsMeter
                     perkName = perkName.Substring("Perkname.".Length);
                 }
                 perkName = perkName.Replace("_", " ").Trim();
-                formattedPerks[i] = "<color=#" + colorHex + ">" +
-                    perkName + talentVersion + upgradeMarker + "</color>";
+                formattedPerks.Add("<color=#" + colorHex + ">" +
+                    perkName + talentVersion + upgradeMarker + "</color>");
             }
 
             return string.Join(separator, formattedPerks);
+        }
+
+        private static bool HasVisiblePerks(StageDpsRecord record)
+        {
+            if (record == null || record.CollectedPerks == null)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < record.CollectedPerks.Length; i++)
+            {
+                if (ShouldDisplayPerk(record, i))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool ShouldDisplayPerk(StageDpsRecord record, int index)
+        {
+            if (record.CollectedPerkIds == null ||
+                index >= record.CollectedPerkIds.Length ||
+                record.CollectedPerkIds[index] < 0)
+            {
+                return true;
+            }
+
+            PerkDatabase perkDatabase = PerkDatabase.Instance;
+            if (perkDatabase == null)
+            {
+                return true;
+            }
+
+            PerkDescriptor perk = perkDatabase.PerkDescriptorByID(record.CollectedPerkIds[index]);
+            return perk == null || !perk.IsRegularStatPerk;
         }
 
         private void CreatePerkTable(Transform parent)
@@ -1602,6 +1750,8 @@ namespace BlackveilDpsMeter
 
             var button = buttonImage.gameObject.AddComponent<UnityEngine.UI.Button>();
             button.targetGraphic = buttonImage;
+            button.transition = UnityEngine.UI.Selectable.Transition.None;
+            AddButtonOutline(buttonImage);
             button.onClick.AddListener(() =>
             {
                 _selectedSection = sectionIndex;
@@ -1687,6 +1837,13 @@ namespace BlackveilDpsMeter
             image.color = color;
             image.raycastTarget = false;
             return image;
+        }
+
+        private static void AddButtonOutline(Graphic graphic)
+        {
+            var outline = graphic.gameObject.AddComponent<Outline>();
+            outline.effectColor = GraphUiPalette.Border;
+            outline.effectDistance = new Vector2(1.5f, -1.5f);
         }
 
         private static void SetAnchors(RectTransform rectTransform, Vector2 min, Vector2 max)

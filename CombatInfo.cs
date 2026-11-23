@@ -63,7 +63,7 @@ namespace RaidersOfBlackveilMod
             _panelObj.layer = 2;
 
             UnityEngine.UI.Image frameImage = _panelObj.AddComponent<UnityEngine.UI.Image>();
-            frameImage.color = new Color(0.45f, 0.35f, 0.2f, 1f); 
+            frameImage.color = new Color(0.34f, 0.27f, 0.17f, 0.84f);
 
             RectTransform panelRect = frameImage.rectTransform;
             panelRect.anchorMin = new Vector2(1, 0.5f);
@@ -73,8 +73,8 @@ namespace RaidersOfBlackveilMod
             panelRect.sizeDelta = new Vector2(180, 85);       
 
             var outline = _panelObj.AddComponent<Outline>();
-            outline.effectColor = new Color(0.15f, 0.1f, 0.05f, 1f);
-            outline.effectDistance = new Vector2(2, -2);
+            outline.effectColor = new Color(0.08f, 0.06f, 0.04f, 0.65f);
+            outline.effectDistance = new Vector2(1, -1);
 
             // 2b. Inner Area
             GameObject innerArea = new GameObject("Modded_Inner_Area");
@@ -82,7 +82,7 @@ namespace RaidersOfBlackveilMod
             innerArea.layer = 2;
 
             UnityEngine.UI.Image innerImage = innerArea.AddComponent<UnityEngine.UI.Image>();
-            innerImage.color = new Color(0f, 0f, 0f, 0.95f);
+            innerImage.color = new Color(0.025f, 0.022f, 0.018f, 0.78f);
 
             RectTransform innerRect = innerImage.rectTransform;
             innerRect.anchorMin = Vector2.zero;
@@ -96,7 +96,7 @@ namespace RaidersOfBlackveilMod
             textObj.layer = 2;
 
             _uiText = textObj.AddComponent<TextMeshProUGUI>();
-            _uiText.fontSize = 14;
+            _uiText.fontSize = 12;
             _uiText.color = Color.white;
             _uiText.alignment = TextAlignmentOptions.Center;
 
@@ -145,24 +145,24 @@ namespace RaidersOfBlackveilMod
                 var (magicPower, physicalPower, CriticalChance, CriticalDamage, isOutOfDanger, element) = FetchCombatData();
 
                 // 1. Determine the color and text dynamically based on the state
-                string safeColor = isOutOfDanger ? "#A0FFA0" : "#FF5555";
+                string safeColor = isOutOfDanger ? "#8BA57A" : "#B87568";
 
                 string elementLabel = Plugin.SelectedElement.ToUpper();
 
                 var hexColor = elementLabel.ToLower() switch
             {
-                "burn"   => "#f17728",
-                "poison" => "#952db8",
-                "bleed"  => "#c94a46",
-                "shock"  => "#b7a93f",
-                "root"   => "#be927e",
-                "frost"  => "#57cccc",
-                "chill"  => "#57cccc", // Maps chill to frost color/stat
-                "curse"  => "#267b5b",
-                "minion" => "#f06ee9",
-                "summon" => "#f06ee9", // Maps summon to minion color/stat
-                "bless"  => "#d8f19c",
-                "fury"   => "#64210f",
+                "burn"   => "#C9793B",
+                "poison" => "#8A5E9E",
+                "bleed"  => "#AC5C55",
+                "shock"  => "#A99A49",
+                "root"   => "#A88F7B",
+                "frost"  => "#5D9EA0",
+                "chill"  => "#5D9EA0",
+                "curse"  => "#4E806D",
+                "minion" => "#AA6E9F",
+                "summon" => "#AA6E9F",
+                "bless"  => "#AAB982",
+                "fury"   => "#815544",
                 _        => "#ffffff" // Default fallback if no match
             };
 
@@ -174,10 +174,10 @@ namespace RaidersOfBlackveilMod
 
                 
                 // Format to 1 decimal place (e.g. 120.5)
-                _uiText.text =  $"<color=#C090FF><b>MAGIC:</b> {magicPower:F1}</color>\n" +
-                                $"<color=#FF8080><b>PHYSICAL:</b> {physicalPower:F1}</color>\n" +
+                _uiText.text =  $"<color=#A88AB8><b>MAGIC:</b> {magicPower:F1}</color>\n" +
+                                $"<color=#B88478><b>PHYSICAL:</b> {physicalPower:F1}</color>\n" +
                                 finalLine + "\n" +
-                                $"<color=#FFFF00><b>Crit:</b> {CriticalChance:F1}%//{CriticalDamage:F1}%</color>\n" +
+                                $"<color=#C9B47E><b>Crit:</b> {CriticalChance:F1}%//{CriticalDamage:F1}%</color>\n" +
                                 $"<color={safeColor}><b>Safe:</b> {isOutOfDanger}</color>";
             }
         }
@@ -216,7 +216,7 @@ namespace RaidersOfBlackveilMod
                         bool outOfDanger = true;
                         if (stats.RuntimeStats != null)
                         {
-                            outOfDanger = stats.RuntimeStats.IsOutOfDanger;
+                            outOfDanger = (bool)stats.RuntimeStats.IsOutOfDanger;
                         }
                         else
                         {
